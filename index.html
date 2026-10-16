@@ -724,11 +724,11 @@ function editCuenta(id,tipo){
       {k:'tipo',label:'Tipo',type:'select',opts:Object.entries(ACC_T),dep:1},
       {k:'banco',label:'Banco (opcional)',ph:'Santander, BBVA, NU…'},
       {k:'saldo',label:'Saldo hoy',type:'number',hint:'Cuádralo con tu banco.'},
-      ...(v.tipo==='ahorro'?[{k:'tasa',label:'Tasa anual %',type:'number',hint:'La que te da el banco por ese apartado. Sirve para proyectar.'}]:[]),
+      ...(v.tipo==='ahorro'?[{k:'tasa',label:'Tasa anual %',type:'number',hint:'La que te da el banco por ese apartado. Sirve para proyectar.'},{k:'liq',label:'Lo puedo usar cuando quiera',type:'check',hint:'Si lo activas, cuenta como dinero disponible y entra en tus avisos de liquidez.'}]:[]),
       {k:'color',label:'Color',type:'select',opts:COLORES}],
     save:v=>{
       if(!String(v.nombre||'').trim())return 'Ponle un nombre.';
-      const o={nombre:v.nombre.trim(),banco:String(v.banco||'').trim(),tipo:v.tipo,saldo:r2(num(v.saldo)),tasa:v.tipo==='ahorro'?num(v.tasa):0,color:v.color};
+      const o={nombre:v.nombre.trim(),banco:String(v.banco||'').trim(),tipo:v.tipo,saldo:r2(num(v.saldo)),tasa:v.tipo==='ahorro'?num(v.tasa):0,liq:v.tipo==='ahorro'&&!!v.liq,color:v.color};
       if(a)Object.assign(a,o);else accs().push({id:uid(),...o});
       recalcCash();commit('Guardado');},
     onDel:()=>{S.cuentas=accs().filter(x=>x.id!==id);recalcCash();commit('Cuenta eliminada')}});
@@ -1138,7 +1138,7 @@ const accs=()=>S.cuentas||(S.cuentas=[]);
 const acc=id=>accs().find(a=>a.id===id)||null;
 const defAcc=()=>accs().find(a=>a.tipo==='debito')||accs().find(a=>a.tipo!=='ahorro')||accs()[0]||null;
 const accIdOf=id=>(acc(id)||defAcc()||{}).id;
-const isLiquid=a=>a.tipo!=='ahorro';
+const isLiquid=a=>a.tipo!=='ahorro'||!!a.liq;
 function recalcCash(){S.cash=r2(accs().filter(isLiquid).reduce((s,a)=>s+(+a.saldo||0),0))}
 function moveCash(delta,cid){
   let a=acc(cid)||defAcc();
@@ -1154,11 +1154,11 @@ const defAlertas=()=>({act:{vencido:true,liquidez:true,semana:true,cobertura:tru
 const mergeAlertas=a=>{const d=defAlertas();a=a||{};return{...d,...a,act:{...d.act,...(a.act||{})}}};
 const isCardMedio=m=>!!cardOf(m);
 const normMedio=m=>(!m||m==='cuenta')?((defAcc()||{}).id||'cuenta'):m;
-const medioOpts=()=>[...accs().filter(isLiquid).map(a=>[a.id,(a.tipo==='paypal'?'PayPal ':a.tipo==='efectivo'?'Efectivo ':'Débito ')+a.nombre.replace(/^(débito|efectivo|paypal)\s+/i,'')]),...S.cards.map(c=>[c.id,'Tarjeta '+c.nombre])];
+const medioOpts=()=>[...accs().filter(isLiquid).map(a=>[a.id,(a.tipo==='paypal'?'PayPal ':a.tipo==='efectivo'?'Efectivo ':a.tipo==='ahorro'?'':'Débito ')+a.nombre.replace(/^(débito|efectivo|paypal)\s+/i,'')]),...S.cards.map(c=>[c.id,'Tarjeta '+c.nombre])];
 const destOpts=()=>accs().map(a=>[a.id,a.nombre]);
 function snapshot(){
   if(!S)return;const mk=monthKey(todayISO());S.snap=S.snap||{};
-  S.snap[mk]={f:todayISO(),cash:r2(S.cash),deuda:r2(S.cards.reduce((s,c)=>s+(+c.balance||0),0)),ahorro:r2(accs().filter(a=>a.tipo==='ahorro').reduce((s,a)=>s+(+a.saldo||0),0))};
+  S.snap[mk]={f:todayISO(),cash:r2(S.cash),deuda:r2(S.cards.reduce((s,c)=>s+(+c.balance||0),0)),ahorro:r2(accs().filter(a=>a.tipo==='ahorro'&&!a.liq).reduce((s,a)=>s+(+a.saldo||0),0))};
 }
 
 /* ---- comercios y rubros ---- */
@@ -1772,9 +1772,9 @@ function vAjustes(){
 
 /* ===== vistas: cuentas, comercios, historial, ahorro y alertas ===== */
 function vCuentas(){
-  const as=accs(),ah=as.filter(a=>a.tipo==='ahorro'),tAh=ah.reduce((s,a)=>s+(+a.saldo||0),0);
-  const face=a=>`<article><button class="cardface c-${a.color||'teal'}" data-a="editCuenta" data-id="${a.id}" aria-label="Editar ${esc(a.nombre)}"><div class="nm"><span>${esc(a.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>${esc(ACC_T[a.tipo]||'Cuenta')}${a.banco?' · '+esc(a.banco):''}</small><div class="bal">${fmt0(a.saldo)}</div>${a.tipo==='ahorro'&&a.tasa?`<small style="margin-top:6px">${a.tasa}% anual · rinde unos ${fmt0(a.saldo*a.tasa/1200)} al mes</small>`:''}</div></button></article>`;
-  return `<div><p class="muted" style="margin:0">Disponible <b class="n" style="color:var(--ink)">${fmt0(S.cash)}</b>${ah.length?` · En apartados <b class="n" style="color:var(--ink)">${fmt0(tAh)}</b>`:''}</p></div>
+  const as=accs(),ah=as.filter(a=>a.tipo==='ahorro'),tAh=ah.reduce((s,a)=>s+(+a.saldo||0),0),tAhFijo=ah.filter(a=>!a.liq).reduce((s,a)=>s+(+a.saldo||0),0);
+  const face=a=>`<article><button class="cardface c-${a.color||'teal'}" data-a="editCuenta" data-id="${a.id}" aria-label="Editar ${esc(a.nombre)}"><div class="nm"><span>${esc(a.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>${esc(ACC_T[a.tipo]||'Cuenta')}${a.tipo==='ahorro'&&a.liq?' · disponible':''}${a.banco?' · '+esc(a.banco):''}</small><div class="bal">${fmt0(a.saldo)}</div>${a.tipo==='ahorro'&&a.tasa?`<small style="margin-top:6px">${a.tasa}% anual · rinde unos ${fmt0(a.saldo*a.tasa/1200)} al mes</small>`:''}</div></button></article>`;
+  return `<div><p class="muted" style="margin:0">Disponible <b class="n" style="color:var(--ink)">${fmt0(S.cash)}</b>${tAhFijo>0?` · Apartado aparte <b class="n" style="color:var(--ink)">${fmt0(tAhFijo)}</b>`:''}</p></div>
   ${as.map(face).join('')}
   <div class="chips">${as.length>1?'<button class="btn sm" data-a="transfer">Pasar dinero entre cuentas</button>':''}<button class="btn ghost sm" data-a="tab" data-v="ahorro">Ver ahorro</button></div>`;
 }
