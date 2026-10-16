@@ -50,14 +50,16 @@ main>.back+*{margin-top:4px}
 
 nav.rail{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--bg);border-top:1px solid var(--line);padding:8px 16px calc(env(safe-area-inset-bottom,0px) + 8px)}
 nav.rail:empty{display:none}
-nav.rail .bar{max-width:520px;margin-inline:auto;display:grid;grid-template-columns:repeat(4,1fr)}
-nav.rail button{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:6px 0;color:var(--muted);font-size:12px;font-weight:500}
+nav.rail .bar{max-width:520px;margin-inline:auto;display:grid;grid-template-columns:repeat(5,1fr)}
+nav.rail button{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:6px 0;color:var(--muted);font-size:11.5px;font-weight:500}
 nav.rail button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 nav.rail button[aria-current="page"]{color:var(--accent);font-weight:600}
 
 .top{display:flex;gap:12px;align-items:center;justify-content:space-between}
 .top p{margin:4px 0 0;color:var(--muted);font-size:15px}
 .back{background:none;border:0;padding:0 0 12px;color:var(--accent);font-weight:600;font-size:15px}
+.hb{display:flex;gap:8px;flex:none}
+#main[data-sub] .more{display:none}
 .plus{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--bg);display:grid;place-items:center;flex:none;transition:transform .12s ease-out,background .15s}
 .plus:hover{background:var(--surface2)} .plus:active{transform:scale(.94)}
 .plus svg{width:18px;height:18px;stroke:var(--ink);stroke-width:1.8;stroke-linecap:round;fill:none}
@@ -1582,7 +1584,8 @@ const ICON={
   chev:'<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
   check:'<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
 };
-const plusBtn=l=>`<button class="plus" data-a="add" aria-label="${l||'Agregar'}">${ICON.plus}</button>`;
+const moreBtn=()=>`<button class="plus more" data-a="tab" data-v="mas" aria-label="Más opciones: movimientos, ahorro, alertas y ajustes"><svg viewBox="0 0 24 24" style="fill:var(--ink);stroke:none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>`;
+const plusBtn=l=>`<span class="hb">${moreBtn()}<button class="plus" data-a="add" aria-label="${l||'Agregar'}">${ICON.plus}</button></span>`;
 function rdate(iso){const p=parse(iso),nm=parse(todayISO()).m;return `<div class="rdate"><b>${p.d}</b><small>${p.m!==nm?MES[p.m]:DIA[wday(iso)]}</small></div>`}
 function fechaLarga(iso){const p=parse(iso);return new Date(p.y,p.m,p.d,12).toLocaleDateString('es-MX',{weekday:'long',day:'numeric'})}
 function hoyLargo(){const d=new Date(todayISO()+'T12:00:00');const s=d.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});return s.charAt(0).toUpperCase()+s.slice(1)}
@@ -1649,12 +1652,9 @@ function vTarjetas(){
 }
 
 function vMas(){
-  const gt=groupTotals();
   const go=(a,t,s)=>`<button class="go" data-a="tab" data-v="${a}"><span><span class="t">${t}</span><br><span class="s">${s}</span></span>${ICON.chev}</button>`;
   return `<header class="top"><h1>Más</h1></header>
   <div>${go('mov','Movimientos y estados de cuenta','Sube un estado para completar lo que olvidaste')}
-  ${go('grupos','Grupos',S.grupos.length?(gt.owed>0?`Te deben ${fmt0(gt.owed)}`:gt.owe>0?`Debes ${fmt0(gt.owe)}`:S.grupos.map(g=>esc(g.nombre)).join(', ')):'El depa, salidas, lo que compartes')}
-  ${go('resumen','Resumen','Este mes, en qué comercios gastas y el historial')}
   ${go('ahorro','Ahorro','Tus apartados y cuánto crecerían')}
   ${go('alertas','Alertas',alertas().length?`${alertas().length} por revisar`:'Avisos de liquidez con tus propias reglas')}
   ${go('ajustes','Ajustes','Tu nombre, saldo, regla de presupuesto y respaldo')}</div>`;
@@ -1662,7 +1662,7 @@ function vMas(){
 
 function vResumen(){
   const sub=ui.sub.res||'mes';
-  const head=`<header class="top"><h1>Resumen</h1></header><div>${segHTML('res',[['mes','Este mes'],['com','Comercios'],['hist','Historial']],'mes')}</div>`;
+  const head=`<header class="top"><h1>Resumen</h1><span class="hb">${moreBtn()}</span></header><div>${segHTML('res',[['mes','Este mes'],['com','Comercios'],['hist','Historial']],'mes')}</div>`;
   return head+(sub==='com'?vComercios():sub==='hist'?vHistorial():vResumenMes());
 }
 function vResumenMes(){
@@ -1956,17 +1956,19 @@ const NAVI={
   hoy:'<svg viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z"/></svg>',
   pagos:'<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
   tarjetas:'<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10.5h18"/></svg>',
-  mas:'<svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg>'};
-const TABS=[['hoy','Hoy'],['pagos','Pagos'],['tarjetas','Tarjetas'],['mas','Más']];
-const SUB=['mov','grupos','resumen','ajustes','ahorro','alertas'];
+  resumen:'<svg viewBox="0 0 24 24"><path d="M5 20V11M12 20V4M19 20v-6"/></svg>',
+  grupos:'<svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="10" r="2.4"/><path d="M16 14.2a4.6 4.6 0 0 1 5 4.3"/></svg>'};
+const TABS=[['hoy','Hoy'],['pagos','Pagos'],['tarjetas','Tarjetas'],['resumen','Resumen'],['grupos','Grupos']];
+const SUB=['mas','mov','ajustes','ahorro','alertas'];
 function render(){
   IM={};
   if(!S){$('#nav').innerHTML='';$('#main').innerHTML=welcome();return}
-  const cur=SUB.includes(ui.tab)?'mas':ui.tab;
+  const cur=SUB.includes(ui.tab)?'':ui.tab;
   $('#nav').innerHTML=`<div class="bar">${TABS.map(([k,l])=>`<button data-a="tab" data-v="${k}" ${cur===k?'aria-current="page"':''}>${NAVI[k]}${l}</button>`).join('')}</div>`;
   const V={hoy:vHoy,pagos:vPagos,tarjetas:vTarjetas,mas:vMas,resumen:vResumen,mov:vMov,grupos:vGrupos,ajustes:vAjustes,ahorro:vAhorro,alertas:vAlertas};
   const sy=window.scrollY;
-  const back=SUB.includes(ui.tab)&&!(ui.tab==='grupos'&&ui.grupo)?'<button class="back" data-a="tab" data-v="mas" style="align-self:flex-start">‹ Más</button>':'';
+  const back=SUB.includes(ui.tab)?(ui.tab==='mas'?'<button class="back" data-a="tab" data-v="hoy" style="align-self:flex-start">‹ Hoy</button>':'<button class="back" data-a="tab" data-v="mas" style="align-self:flex-start">‹ Más</button>'):'';
+  $('#main').toggleAttribute('data-sub',SUB.includes(ui.tab));
   $('#main').innerHTML=back+(V[ui.tab]||vHoy)();
   window.scrollTo(0,sy);
 }
