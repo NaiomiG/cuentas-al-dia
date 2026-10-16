@@ -357,7 +357,7 @@ function persist(skipCloud){
   try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
   if(!dbDoc)return;
   clearTimeout(tmr);
-  tmr=setTimeout(async()=>{if(window.OLDAPP)return;try{await dbDoc.set({json:JSON.stringify(S),updated:S.updated});dbState='cloud'}catch(e){dbState=(navigator.onLine===false)?'offline':'error'}const el=$('#dbstate');if(el)el.textContent=dbLabel();if(!skipCloud&&typeof cloudOn==='function'&&cloudOn())syncAll()},900);
+  tmr=setTimeout(async()=>{if(window.OLDAPP||window.HOLD)return;try{await dbDoc.set({json:JSON.stringify(S),updated:S.updated});dbState='cloud'}catch(e){dbState=(navigator.onLine===false)?'offline':'error'}const el=$('#dbstate');if(el)el.textContent=dbLabel();if(!skipCloud&&typeof cloudOn==='function'&&cloudOn())syncAll()},900);
 }
 const dbLabel=()=>dbState==='cloud'?(typeof AU!=='undefined'&&AU?'Sincronizado con '+AU.email+'. Es privado.':'Guardado en tu cuenta. Es privado y se sincroniza entre tus dispositivos.'):dbState==='error'?'No se pudo guardar en tu cuenta. Los datos siguen en este dispositivo.':dbState==='offline'?'Sin conexión. Se sincroniza cuando vuelva el internet.':'Guardado solo en este navegador. Descarga un respaldo de vez en cuando.';
 function toast(t){const el=$('#toast');el.innerHTML=`<div class="toast">${esc(t)}</div>`;clearTimeout(toast.t);toast.t=setTimeout(()=>{el.innerHTML=''},2400)}
@@ -390,12 +390,13 @@ const isDone=i=>!!i.rec;
 function cardInst(c,from,to){
   const t=todayISO();let base=addDays(t,-60);if(c.desde&&c.desde>base)base=c.desde;
   const dates=[];
-  for(const [y,m] of monthsBetween(addDays(base,-60),to)){const pay=addDays(clampDay(y,m,+c.corte||1),+c.diasPago||20);if(pay>=base&&pay<=to)dates.push(pay)}
+  if(!(+c.corte>=1)){if((+c.balance||0)>0){const d=addDays(t,+c.diasPago||20);if(d>=from&&d<=to)dates.push(d)}}
+  else for(const [y,m] of monthsBetween(addDays(base,-60),to)){const pay=addDays(clampDay(y,m,+c.corte),+c.diasPago||20);if(pay>=base&&pay<=to)dates.push(pay)}
   dates.sort();let k=0,first=true;const out=[];
   for(const d of dates){
     const key=`k:${c.id}:${d}`,rec=S.paid[key];let amount,est=false;
     if(rec)amount=rec.monto;
-    else{if(first&&(+c.statement>0))amount=+c.statement;else{amount=cardEst(c,k);est=true}first=false;k++}
+    else{if(first&&(+c.statement>0))amount=+c.statement;else if(first&&c.statement==null&&(+c.balance||0)>0){amount=Math.max(+c.balance,cardEst(c,k));est=true}else{amount=cardEst(c,k);est=true}first=false;k++}
     if(d>=from)out.push({key,kind:'card',ref:c,date:d,name:'Tarjeta '+c.nombre,sub:'',amount,est,tipo:'egreso',cat:'Deuda',grupo:'Tarjetas',rec});
   }
   return out;
@@ -547,7 +548,7 @@ function editItem(id,tipo,freq,pre){
 }
 function editCard(id){
   const c=id?S.cards.find(x=>x.id===id):null;
-  const v=c?{...c}:{nombre:'',color:COLORES[S.cards.length%5][0],limite:'',balance:'',statement:'',corte:'',diasPago:20,tasa:'',gastoProm:''};
+  const v=c?{...c,statement:c.statement==null?'':c.statement,corte:c.corte||''}:{nombre:'',color:COLORES[S.cards.length%5][0],limite:'',balance:'',statement:'',corte:'',diasPago:20,tasa:'',gastoProm:''};
   openForm({title:c?'Editar tarjeta':'Nueva tarjeta',vals:v,del:!!c,
     note:'No pidas ni captures el número de la tarjeta. Aquí solo usamos montos y fechas.',
     fields:()=>[
@@ -555,7 +556,7 @@ function editCard(id){
       {k:'color',label:'Color',type:'select',opts:COLORES},
       {k:'limite',label:'Límite de crédito',type:'number'},
       {k:'balance',label:'Saldo total (lo que debes)',type:'number'},
-      {k:'statement',label:'Pago para no generar intereses',type:'number',hint:'Del último corte. Déjalo en 0 si ya lo pagaste.'},
+      {k:'statement',label:'Pago para no generar intereses',type:'number',hint:'Del último corte. Pon 0 si ya lo pagaste. Si no lo sabes, déjalo vacío y cuento todo tu saldo.'},
       {k:'corte',label:'Día de corte',type:'number',hint:'Del 1 al 31'},
       {k:'diasPago',label:'Días del corte al pago',type:'number',hint:'Casi siempre 20'},
       {k:'tasa',label:'Tasa anual (CAT %)',type:'number',hint:'Opcional. Sirve para ordenar abonos.'},
@@ -563,7 +564,7 @@ function editCard(id){
     save:v=>{
       if(!String(v.nombre||'').trim())return 'Ponle un nombre a la tarjeta.';
       if(!(num(v.corte)>=1&&num(v.corte)<=31))return 'El día de corte debe estar entre 1 y 31.';
-      const o={nombre:v.nombre.trim(),color:v.color||'navy',limite:num(v.limite),balance:num(v.balance),statement:num(v.statement),corte:num(v.corte),diasPago:num(v.diasPago)||20,tasa:num(v.tasa),gastoProm:num(v.gastoProm)};
+      const o={nombre:v.nombre.trim(),color:v.color||'navy',limite:num(v.limite),balance:num(v.balance),statement:(v.statement===''||v.statement==null)?null:num(v.statement),corte:num(v.corte),diasPago:num(v.diasPago)||20,tasa:num(v.tasa),gastoProm:num(v.gastoProm)};
       if(c)Object.assign(c,o);else S.cards.push({id:uid(),desde:todayISO(),msi:[],...o});
       commit('Guardado');},
     onDel:()=>{S.cards=S.cards.filter(x=>x.id!==id);Object.keys(S.paid).forEach(k=>{if(k.startsWith('k:'+id+':'))delete S.paid[k]});commit('Tarjeta eliminada')}});
@@ -1095,23 +1096,58 @@ async function peekGroup(code){
 
 /* ===== arranque de la nube ===== */
 const trivial=s=>!s||s.demo||(!s.items.length&&!s.cards.length&&!s.movs.length&&!s.grupos.length);
+const OWNK='cuentas-al-dia-owner';
+const getOwner=()=>{try{return localStorage.getItem(OWNK)||''}catch(e){return''}};
+const setOwner=u=>{try{if(u)localStorage.setItem(OWNK,u);else localStorage.removeItem(OWNK)}catch(e){}};
+function askConflict(){
+  return new Promise(res=>{
+    openForm({title:'Ya hay datos en este dispositivo',vals:{pick:'cuenta'},saveLabel:'Continuar',
+      note:'Tu cuenta ya tiene datos guardados y este dispositivo también tiene otros. Elige cuáles usar; los otros se descartan.',
+      fields:()=>[{k:'pick',label:'Usar',type:'select',opts:[['cuenta','Los de mi cuenta'],['aqui','Los de este dispositivo (reemplazan los de mi cuenta)']]}],
+      save:v=>{res(v.pick)}});
+  });
+}
 async function cloudPull(){
   if(!cloudOn())return;
   dbDoc=userDoc;
   try{
+    const own=getOwner();
+    if(own&&own!==AU.uid){S=null;ST=null;try{localStorage.removeItem(KEY)}catch(e){}}
     const snap=await dbDoc.get();
     const d=snap.exists?(snap.data()||{}):{};
     if(d.json){
       const raw=JSON.parse(d.json);
       if((raw.v||0)>APPV){window.OLDAPP=true;toast('Hay una versión más nueva de la app. Ciérrala y ábrela de nuevo para actualizar.');return}
       const r=migrate(raw);
-      if(trivial(S)||(r.updated||0)>(S.updated||0)){S=r;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-      else persist(true);
+      let usar=null;
+      if(!trivial(S)&&!trivial(r)&&!own){window.HOLD=true;if(!M)render();usar=await askConflict();window.HOLD=false}
+      let take;
+      if(usar==='aqui')take=false;else if(usar==='cuenta')take=true;else if(trivial(S))take=true;else if(trivial(r))take=false;else take=(r.updated||0)>(S.updated||0);
+      if(take){S=r;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}else persist(true);
     }else if(S)persist(true);
+    setOwner(AU.uid);
     dbState='cloud';
-  }catch(e){dbState=AU?(navigator.onLine?'error':'offline'):'local'}
+  }catch(e){window.HOLD=false;dbState=AU?(navigator.onLine?'error':'offline'):'local'}
   await syncAll();
   if(!M)render();
+}
+function finishLogout(){
+  signOut();S=null;ST=null;try{localStorage.removeItem(KEY)}catch(e){}setOwner('');
+  ui.tab='hoy';saveUI();render();window.scrollTo(0,0);
+  toast('Sesión cerrada. Este dispositivo quedó limpio; tus datos siguen en tu cuenta.');
+}
+async function doLogout(){
+  if(!cloudOn()){finishLogout();return}
+  toast('Guardando antes de salir…');
+  try{
+    if(S&&!window.OLDAPP&&!window.HOLD){S.updated=Date.now();await dbDoc.set({json:JSON.stringify(S),updated:S.updated})}
+    await syncAll();
+    finishLogout();
+  }catch(e){
+    openForm({title:'No pude subir tus últimos cambios',vals:{},saveLabel:'Cerrar sesión de todos modos',
+      note:'Parece que no hay internet. Si cierras sesión ahora, lo que no se alcanzó a subir se pierde de este dispositivo. Mejor espera a tener conexión.',
+      fields:()=>[],save:()=>{finishLogout()}});
+  }
 }
 function loginForm(){
   openForm({title:'Iniciar sesión',vals:{email:'',pw:''},saveLabel:'Entrar',
@@ -1275,6 +1311,7 @@ function projectAcc(days,pend){
 function alertas(m){
   m=m||metrics();
   const A=S.alertas=mergeAlertas(S.alertas),t=m.t,out=[];
+  S.cards.filter(c=>(+c.balance||0)>0&&(!(+c.corte>=1)||c.statement==null)).forEach(c=>out.push({k:'datos',tone:'warn',text:`Falta capturar ${!(+c.corte>=1)?'el día de corte':'el pago para no generar intereses'} de ${c.nombre}. Mientras tanto cuento todo tu saldo de ${fmt0(c.balance)}.`,go:'tarjetas'}));
   if(A.act.vencido&&m.overdue.length)out.push({k:'vencido',tone:'bad',text:`${m.overdue.length>1?m.overdue.length+' pagos vencidos':'Un pago vencido'} por ${fmt0(m.overdue.reduce((s,i)=>s+i.amount,0))}.`,go:'pagos'});
   if(A.act.liquidez){
     const pts=project(Math.max(7,+A.horizonte||30),m.pend),low=pts.reduce((a,p)=>p.bal<a.bal?p:a,pts[0]),min=+A.minimo||0;
@@ -1759,7 +1796,7 @@ function vAjustes(){
   return `<div class="top"><div><h1>Ajustes</h1><p>Tu información es privada. Solo tú la ves.</p></div></div>
   <div class="tools"><section><h2>General</h2><div class="fgrid">${inp('Tu nombre','nombre','', 'text')}<div class="fld"><label>Saldo disponible</label><div class="n" style="font:700 20px var(--f-display);padding:8px 0">${fmt0(S.cash)}</div><small>Suma tus cuentas de débito, efectivo y PayPal. Se edita en Tarjetas, en Débito y ahorro.</small></div>${inp('Fondo de emergencia','emergencia','Lo que tienes guardado aparte')}${inp('Gasto variable por día','gastoDiario','Comida fuera, transporte. Afina la proyección.')}${inp('Ingreso mensual fijo (opcional)','ingresoProy','En 0 se calcula con tus ingresos recurrentes')}</div></section>
   <section><h2>Regla de presupuesto<small>${suma===100?'suma 100%':`suma ${suma}%, debería ser 100%`}</small></h2><div class="fgrid"><div class="fld"><label for="sp_N">Necesidades %</label><input id="sp_N" data-sp="Needs" type="number" inputmode="decimal" value="${sp.Needs}"></div><div class="fld"><label for="sp_W">Gustos %</label><input id="sp_W" data-sp="Wants" type="number" inputmode="decimal" value="${sp.Wants}"></div><div class="fld"><label for="sp_A">Ahorro %</label><input id="sp_A" data-sp="Ahorro" type="number" inputmode="decimal" value="${sp.Ahorro}"></div></div><div class="small muted" style="margin-top:8px">La clásica es 50, 30 y 20.</div></section></div>
-  ${CFG?`<section class="sect"><h2>Cuenta<small>${AU?esc(AU.email):'sin iniciar sesión'}</small></h2><div class="small muted" style="margin-bottom:10px">${AU?'Tus datos se guardan en tu cuenta y se sincronizan entre tus dispositivos. Los grupos compartidos se actualizan con la otra persona.':'Inicia sesión para guardar tus datos en la nube, usarlos en otro teléfono y compartir grupos.'}</div><div class="chips">${AU?'<button class="btn ghost sm" data-a="syncNow">Sincronizar ahora</button><button class="btn ghost sm" data-a="logout">Cerrar sesión</button>':'<button class="btn sm" data-a="login">Iniciar sesión</button>'}</div></section>`:''}
+  ${CFG?`<section class="sect"><h2>Cuenta<small>${AU?esc(AU.email):'sin iniciar sesión'}</small></h2><div class="small muted" style="margin-bottom:10px">${AU?'Tus datos se guardan en tu cuenta y se sincronizan entre tus dispositivos. Los grupos compartidos se actualizan con la otra persona. Al cerrar sesión, este dispositivo se limpia: tus datos siguen en tu cuenta.':'Inicia sesión para guardar tus datos en la nube, usarlos en otro teléfono y compartir grupos.'}</div><div class="chips">${AU?'<button class="btn ghost sm" data-a="syncNow">Sincronizar ahora</button><button class="btn ghost sm" data-a="logout">Cerrar sesión</button>':'<button class="btn sm" data-a="login">Iniciar sesión</button>'}</div></section>`:''}
   <section class="sect"><h2>Apariencia<small>solo en este dispositivo</small></h2>
     <div class="thm" role="group" aria-label="Tema">${THEMES.map(([k,l,bg])=>`<button type="button" data-a="setTheme" data-v="${k}" aria-pressed="${(ui.theme||'auto')===k}"><i style="background:${bg}"></i>${l}</button>`).join('')}</div>
     ${['auto','claro','dark','piedra'].includes(ui.theme||'auto')?`<div class="small muted" style="margin:14px 0 8px">Color de acento</div>
@@ -2026,7 +2063,7 @@ const A={
   downloadBackup:async()=>{if(!window.claude){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='cuentas-al-dia-respaldo.json';document.body.appendChild(a);a.click();a.remove();toast('Respaldo descargado');return}try{const d=await claude.use('downloads');if(!d)throw 0;await d.save({filename:'cuentas-al-dia-respaldo.json',data:JSON.stringify(S,null,1)});toast('Respaldo guardado')}catch(e){const ta=$('#imp');ta.value=JSON.stringify(S);ta.select();toast('La descarga no está disponible. Copia el texto de la caja.')}},
   importBackup:()=>doImport($('#imp').value),
   login:()=>loginForm(),
-  logout:()=>{signOut();render();toast('Sesión cerrada. Tus datos siguen en este dispositivo.')},
+  logout:()=>doLogout(),
   syncNow:async()=>{if(!cloudOn())return;toast('Sincronizando…');try{if(S){S.updated=Date.now();await dbDoc.set({json:JSON.stringify(S),updated:S.updated});dbState='cloud'}await syncAll()}catch(e){dbState=navigator.onLine===false?'offline':'error'}if(!M)render();toast(dbState==='cloud'?'Todo sincronizado':'No se pudo sincronizar')},
   shareGrupo:async el=>{const g=S.grupos.find(x=>x.id===el.dataset.id);if(!g||!cloudOn())return;toast('Creando el código…');try{await shareGrupo(g);render();toast('Listo. Pásale el código a la otra persona.')}catch(e){toast('No se pudo compartir. Revisa tu conexión.')}},
   copyCode:async el=>{try{await navigator.clipboard.writeText(el.dataset.c);toast('Código copiado')}catch(e){toast('Código: '+showCode(el.dataset.c))}},
