@@ -67,7 +67,7 @@ nav.rail button[aria-current="page"]{color:var(--accent);font-weight:600}
 .btn.sm{padding:6px 14px;font-size:14px}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
 .btn.ghost:hover{background:var(--surface2);filter:none}
-.btn.navy{background:var(--ink);color:#fff}
+.btn.navy{background:var(--ink);color:var(--bg)}
 .btn.bad{background:var(--bad);color:#fff}
 .btn.bad-t{color:var(--bad);border-color:transparent;background:none}
 .link{background:none;border:0;padding:0;color:var(--accent);font-weight:600;font-size:15px;text-underline-offset:4px}
@@ -145,7 +145,7 @@ nav.rail button[aria-current="page"]{color:var(--accent);font-weight:600}
 .mnav b{font:600 20px var(--f-display);letter-spacing:-.01em;min-width:130px;text-align:center;text-transform:capitalize}
 .seg{display:inline-flex;background:var(--surface2);border-radius:999px;padding:3px;gap:2px;flex-wrap:wrap}
 .seg button{background:none;border:0;padding:7px 16px;border-radius:999px;font-weight:600;font-size:14.5px;color:var(--muted)}
-.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .chart{width:100%;height:auto;display:block}
 .chart text{font:11px var(--f-body);fill:var(--muted)}
 .chart .gl{stroke:var(--line);stroke-width:1}
@@ -221,8 +221,8 @@ textarea{min-height:100px;font-size:14px}
 
 /* avisos al pie */
 #toast{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);display:flex;justify-content:center;z-index:60;pointer-events:none;padding:0 16px}
-.toast{background:var(--ink);color:#fff;padding:12px 18px;border-radius:14px;font-size:14.5px;display:flex;gap:16px;align-items:center;max-width:100%;pointer-events:auto;animation:up .22s ease-out}
-.toast button{background:none;border:0;padding:0;font-weight:700;color:#BFE3CE;text-decoration:underline;text-underline-offset:3px}
+.toast{background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:14px;font-size:14.5px;display:flex;gap:16px;align-items:center;max-width:100%;pointer-events:auto;animation:up .22s ease-out}
+.toast button{background:none;border:0;padding:0;font-weight:700;color:var(--toast-link,#BFE3CE);text-decoration:underline;text-underline-offset:3px}
 @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
 .welcome{max-width:520px;margin:9vh auto;padding:0 24px}
@@ -255,6 +255,32 @@ main h2 small{font:500 13.5px var(--f-body);color:var(--muted)}
 .mini th:first-child,.mini td:first-child{text-align:left;color:var(--muted)}
 .alrow{padding:8px 0}
 .chk-l{display:flex;gap:10px;align-items:center;font-size:15px}
+
+/* temas */
+:root[data-theme=dark]{--bg:#0A0E0C;--surface:#111714;--surface2:#18201C;--ink:#E9EFEB;--muted:#9AA59F;--ring:#6B7570;--line:#27312B;--accent-ink:#06120B;--good:#5BC78F;--good-soft:rgba(91,199,143,.16);--warn:#E8B04F;--warn-soft:rgba(232,176,79,.15);--bad:#F08A72;--bad-soft:rgba(240,138,114,.16);--toast-link:#1F6F4A;color-scheme:dark}
+:root[data-theme=piedra]{--bg:#EEECE7;--surface:#F6F4F0;--surface2:#E5E2DB;--ink:#24221E;--muted:#665F55;--ring:#8C857A;--line:#D8D4CA}
+:root[data-theme=aurora],:root[data-theme=noche],:root[data-theme=verde]{--glass:rgba(255,255,255,.42);--gb:rgba(255,255,255,.65)}
+:root[data-theme=aurora]{--ink:#2A1F8F;--muted:#4C45A8;--ring:#6A62C0;--accent:#4B35C4;--accent-soft:rgba(75,53,196,.14);--accent-ink:#fff;--bg:rgba(238,234,252,.8);--surface:rgba(255,255,255,.5);--surface2:var(--glass);--line:rgba(75,53,196,.35);--warn:#8A3B00;--toast-link:#CDB8FF;
+ --mesh:radial-gradient(60% 50% at 15% 10%,#6D7CE8 0,transparent 70%),radial-gradient(55% 45% at 90% 25%,#F3C4DC 0,transparent 70%),radial-gradient(70% 55% at 30% 85%,#B9A4EE 0,transparent 70%),radial-gradient(60% 50% at 95% 95%,#A9CBF4 0,transparent 70%),#CFD4F2}
+:root[data-theme=noche]{--ink:#F1EBFF;--muted:#C9BFF2;--ring:#9A8EDB;--accent:#CDB8FF;--accent-soft:rgba(205,184,255,.2);--accent-ink:#1B1450;--bg:rgba(30,24,80,.82);--surface:rgba(255,255,255,.1);--glass:rgba(255,255,255,.12);--gb:rgba(255,255,255,.22);--surface2:var(--glass);--line:rgba(205,184,255,.28);--good:#8EE0B5;--warn:#FFD08A;--bad:#FF9E8A;--toast-link:#4B35C4;color-scheme:dark;
+ --mesh:radial-gradient(60% 45% at 10% 5%,#14102F 0,transparent 70%),radial-gradient(55% 45% at 95% 30%,#6B5BD9 0,transparent 70%),radial-gradient(65% 50% at 20% 70%,#3E3AA6 0,transparent 70%),radial-gradient(60% 50% at 90% 100%,#E7B4D6 0,transparent 75%),#1D1850}
+:root[data-theme=verde]{--ink:#0F4A33;--muted:#2F6B52;--ring:#4F8A70;--accent:#1F6F4A;--accent-soft:rgba(31,111,74,.15);--accent-ink:#fff;--bg:rgba(232,246,238,.8);--surface:rgba(255,255,255,.5);--surface2:var(--glass);--line:rgba(31,111,74,.35);--toast-link:#BFE3CE;
+ --mesh:radial-gradient(60% 50% at 15% 10%,#7FD1A8 0,transparent 70%),radial-gradient(55% 45% at 90% 25%,#D6F0C8 0,transparent 70%),radial-gradient(70% 55% at 30% 85%,#9ADBC8 0,transparent 70%),radial-gradient(60% 50% at 95% 95%,#A9D8F0 0,transparent 70%),#CFE9DC}
+:root[data-theme=aurora] body,:root[data-theme=noche] body,:root[data-theme=verde] body{background:transparent}
+:root[data-theme=aurora],:root[data-theme=noche],:root[data-theme=verde]{background:#CFD4F2}
+:root[data-theme=noche]{background:#1D1850}:root[data-theme=verde]{background:#CFE9DC}
+:root[data-theme=aurora] body::before,:root[data-theme=noche] body::before,:root[data-theme=verde] body::before{content:"";position:fixed;inset:-40px;z-index:-2;background:var(--mesh);filter:blur(28px);pointer-events:none}
+:root[data-theme=aurora] body::after,:root[data-theme=noche] body::after,:root[data-theme=verde] body::after{content:"";position:fixed;inset:0;z-index:-1;opacity:.2;mix-blend-mode:overlay;pointer-events:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+:root[data-theme=aurora] :is(.box,.bar,.rail,.sheet,.seg),:root[data-theme=noche] :is(.box,.bar,.rail,.sheet,.seg),:root[data-theme=verde] :is(.box,.bar,.rail,.sheet,.seg){-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+:root[data-theme=aurora] :is(.box),:root[data-theme=noche] :is(.box),:root[data-theme=verde] :is(.box){border:1px solid var(--gb)}
+:root[data-theme=aurora] h1,:root[data-theme=noche] h1,:root[data-theme=verde] h1{font-weight:300}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.sw{width:44px;height:44px;border-radius:50%;border:2px solid var(--line);padding:0;background:var(--c)}
+.sw[aria-pressed=true]{outline:2px solid var(--ink);outline-offset:3px}
+.thm{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.thm button{border:2px solid var(--line);border-radius:16px;padding:10px;background:var(--surface2);text-align:left;font-weight:600}
+.thm button[aria-pressed=true]{border-color:var(--accent)}
+.thm i{display:block;height:34px;border-radius:9px;margin-bottom:8px;border:1px solid rgba(0,0,0,.08)}
 </style>
 <div class="shell">
   <nav class="rail" id="nav" aria-label="Secciones"></nav>
@@ -298,7 +324,20 @@ const initials=n=>String(n||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'')
 const KEY='cuentas-al-dia-v1', UIKEY='cuentas-al-dia-ui';
 let S=null, M=null, IM={}, dbDoc=null, dbState='local', ST=null;
 let ui={tab:'hoy',mes:monthKey(todayISO()),sub:{},sel:null,grupo:null,verMiembro:null};
-try{const u=JSON.parse(localStorage.getItem(UIKEY)||'null');if(u&&u.tab)ui.tab=u.tab}catch(e){}
+try{const u=JSON.parse(localStorage.getItem(UIKEY)||'null');if(u&&u.tab)ui.tab=u.tab;if(u&&u.theme)ui.theme=u.theme;if(u&&u.acc)ui.acc=u.acc}catch(e){}
+const THEMES=[['auto','Automático','linear-gradient(90deg,#fff 50%,#0A0E0C 50%)'],['claro','Blanco','#FFFFFF'],['dark','Negro','#0A0E0C'],['piedra','Piedra','#EEECE7'],['aurora','Aurora','linear-gradient(145deg,#6D7CE8,#F3C4DC 55%,#B9A4EE)'],['noche','Aurora noche','linear-gradient(145deg,#14102F,#3E3AA6 55%,#6B5BD9)'],['verde','Aurora verde','linear-gradient(145deg,#7FD1A8,#D6F0C8 55%,#9ADBC8)']];
+const ACCS={verde:['Verde','#1F6F4A','#E3F0E8','#5BC78F'],azul:['Azul','#2456B8','#E3EBFA','#7FA8FF'],violeta:['Violeta','#6B3FB5','#EEE6FA','#B795F5'],rosa:['Rosa','#B8316B','#FBE4EE','#F27AAB'],naranja:['Naranja','#B25A10','#FBEBD9','#F0A04B']};
+const SOLID=t=>t==='claro'||t==='dark'||t==='piedra';
+function applyTheme(){
+  const r=document.documentElement;let t=ui.theme||'auto';
+  if(t==='auto')t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'claro';
+  r.dataset.theme=t;
+  if(SOLID(t)){const a=ACCS[ui.acc||'verde']||ACCS.verde,d=t==='dark';
+    r.style.setProperty('--accent',d?a[3]:a[1]);r.style.setProperty('--accent-soft',d?'color-mix(in srgb,'+a[3]+' 22%,transparent)':a[2])}
+  else{r.style.removeProperty('--accent');r.style.removeProperty('--accent-soft')}
+  const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='dark'?'#0A0E0C':t==='noche'?'#1D1850':t==='piedra'?'#EEECE7':t==='aurora'?'#CFD4F2':t==='verde'?'#CFE9DC':'#FFFFFF';
+}
+try{applyTheme();if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if((ui.theme||'auto')==='auto')applyTheme()})}catch(e){}
 const blank=()=>({v:3,nombre:'',cash:0,cuentas:[],alertas:null,comercios:{},snap:{},sim:{},emergencia:0,split:{Needs:50,Wants:30,Ahorro:20},ingresoProy:0,gastoDiario:0,demo:false,inicio:todayISO(),cards:[],items:[],movs:[],paid:{},grupos:[],stmtSeen:{},stmtHist:{},updated:0});
 function migrate(s){
   const o=Object.assign(blank(),s);
@@ -1721,6 +1760,11 @@ function vAjustes(){
   <div class="tools"><section><h2>General</h2><div class="fgrid">${inp('Tu nombre','nombre','', 'text')}<div class="fld"><label>Saldo disponible</label><div class="n" style="font:700 20px var(--f-display);padding:8px 0">${fmt0(S.cash)}</div><small>Suma tus cuentas de débito, efectivo y PayPal. Se edita en Tarjetas, en Débito y ahorro.</small></div>${inp('Fondo de emergencia','emergencia','Lo que tienes guardado aparte')}${inp('Gasto variable por día','gastoDiario','Comida fuera, transporte. Afina la proyección.')}${inp('Ingreso mensual fijo (opcional)','ingresoProy','En 0 se calcula con tus ingresos recurrentes')}</div></section>
   <section><h2>Regla de presupuesto<small>${suma===100?'suma 100%':`suma ${suma}%, debería ser 100%`}</small></h2><div class="fgrid"><div class="fld"><label for="sp_N">Necesidades %</label><input id="sp_N" data-sp="Needs" type="number" inputmode="decimal" value="${sp.Needs}"></div><div class="fld"><label for="sp_W">Gustos %</label><input id="sp_W" data-sp="Wants" type="number" inputmode="decimal" value="${sp.Wants}"></div><div class="fld"><label for="sp_A">Ahorro %</label><input id="sp_A" data-sp="Ahorro" type="number" inputmode="decimal" value="${sp.Ahorro}"></div></div><div class="small muted" style="margin-top:8px">La clásica es 50, 30 y 20.</div></section></div>
   ${CFG?`<section class="sect"><h2>Cuenta<small>${AU?esc(AU.email):'sin iniciar sesión'}</small></h2><div class="small muted" style="margin-bottom:10px">${AU?'Tus datos se guardan en tu cuenta y se sincronizan entre tus dispositivos. Los grupos compartidos se actualizan con la otra persona.':'Inicia sesión para guardar tus datos en la nube, usarlos en otro teléfono y compartir grupos.'}</div><div class="chips">${AU?'<button class="btn ghost sm" data-a="syncNow">Sincronizar ahora</button><button class="btn ghost sm" data-a="logout">Cerrar sesión</button>':'<button class="btn sm" data-a="login">Iniciar sesión</button>'}</div></section>`:''}
+  <section class="sect"><h2>Apariencia<small>solo en este dispositivo</small></h2>
+    <div class="thm" role="group" aria-label="Tema">${THEMES.map(([k,l,bg])=>`<button type="button" data-a="setTheme" data-v="${k}" aria-pressed="${(ui.theme||'auto')===k}"><i style="background:${bg}"></i>${l}</button>`).join('')}</div>
+    ${['auto','claro','dark','piedra'].includes(ui.theme||'auto')?`<div class="small muted" style="margin:14px 0 8px">Color de acento</div>
+    <div class="swatches" role="group" aria-label="Color de acento">${Object.entries(ACCS).map(([k,a])=>`<button type="button" class="sw" style="--c:${a[1]}" data-a="setAcc" data-v="${k}" aria-label="${a[0]}" aria-pressed="${(ui.acc||'verde')===k}"></button>`).join('')}</div>`:''}
+  </section>
   <section class="sect"><h2>Respaldo<small id="dbstate">${esc(dbLabel())}</small></h2><div class="chips"><button class="btn ghost sm" data-a="copyBackup">Copiar respaldo</button><button class="btn ghost sm" data-a="downloadBackup">Descargar archivo</button></div>
   <div class="fld" style="margin-top:14px"><label for="imp">Restaurar desde un respaldo</label><textarea id="imp" placeholder="Pega aquí el respaldo"></textarea></div><div class="chips" style="margin-top:8px"><button class="btn ghost sm" data-a="importBackup">Restaurar desde texto</button><label class="btn ghost sm" style="cursor:pointer">Elegir archivo<input id="impf" type="file" accept=".json,application/json" hidden></label></div></section>
   <section class="sect"><h2>Borrar todo</h2><div class="small muted" style="margin-bottom:10px">Elimina tarjetas, pagos, grupos y movimientos de este perfil.</div>${ui.wipe?`<button class="btn bad sm" data-a="wipeOk">Sí, borrar todo</button> <button class="btn ghost sm" data-a="wipeNo">Cancelar</button>`:`<button class="btn bad-t sm" data-a="wipe">Borrar todo</button>`}</section>`;
@@ -1926,7 +1970,7 @@ function render(){
   $('#main').innerHTML=back+(V[ui.tab]||vHoy)();
   window.scrollTo(0,sy);
 }
-function saveUI(){try{localStorage.setItem(UIKEY,JSON.stringify({tab:ui.tab}))}catch(e){}}
+function saveUI(){try{localStorage.setItem(UIKEY,JSON.stringify({tab:ui.tab,theme:ui.theme,acc:ui.acc}))}catch(e){}}
 
 /* ===== eventos ===== */
 const A={
@@ -1960,6 +2004,8 @@ const A={
   hmes:el=>{ui.sub.hm=ui.sub.hm===el.dataset.m?null:el.dataset.m;render()},
   calc:()=>{render();toast('Listo')},
   simAvg:()=>{const {sel}=simVals();const f=sel&&avgFlows(sel.id);if(!f)return;S.sim=S.sim||{};S.sim.aporte=Math.round(f.aporte);S.sim.retiro=Math.round(f.retiro);persist();render()},
+  setTheme:el=>{ui.theme=el.dataset.v;saveUI();applyTheme();render()},
+  setAcc:el=>{ui.acc=el.dataset.v;saveUI();applyTheme();render()},
   closeModal:()=>closeModal(),
   mdel:()=>{M.confirm=true;renderModal()},mdelno:()=>{M.confirm=false;renderModal()},
   mdelok:()=>{const f=M.onDel;closeModal();f()},
