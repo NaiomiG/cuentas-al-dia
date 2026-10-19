@@ -1112,13 +1112,14 @@ async function joinGroupRemote(gid){
   return r.ok;
 }
 const stable=o=>JSON.stringify(o,(k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.keys(v).sort().reduce((a,x)=>(a[x]=v[x],a),{}):v);
-const SHF={g:['id','fecha','desc','monto','pagador','partes'],p:['id','fecha','de','a','monto','nota'],c:['id','miembro','concepto','monto','dia','desde']};
-const COLL={g:'gastos',p:'pagos',c:'cargos'};
+const SHF={g:['id','fecha','desc','monto','pagador','partes'],p:['id','fecha','de','a','monto','nota'],c:['id','miembro','concepto','monto','dia','desde'],m:['id','nombre','monto','fecha'],a:['id','meta','miembro','fecha','monto']};
+const COLL={g:'gastos',p:'pagos',c:'cargos',m:'metas',a:'aportes'};
 function mapIds(k,x,f){
   const o={};SHF[k].forEach(n=>o[n]=x[n]);
   if(k==='g'){o.pagador=f(x.pagador);o.partes={};Object.keys(x.partes||{}).forEach(i=>o.partes[f(i)]=x.partes[i])}
   if(k==='p'){o.de=f(x.de);o.a=f(x.a)}
   if(k==='c')o.miembro=f(x.miembro);
+  if(k==='a')o.miembro=f(x.miembro);
   return o;
 }
 const toSh=(c,k,x)=>mapIds(k,x,id=>id==='yo'?c.me:id);
@@ -1133,10 +1134,10 @@ async function syncGroup(g){
     if(!r){c.lost=true;return touched}
     c.lost=false;
     let R={};try{R=JSON.parse(r.json||'{}')}catch(e){}
-    R.g=R.g||{};R.p=R.p||{};R.c=R.c||{};R.names=R.names||{};
+    R.g=R.g||{};R.p=R.p||{};R.c=R.c||{};R.m=R.m||{};R.a=R.a||{};R.names=R.names||{};
     const before=stable(R),now=Date.now(),pending=[];
     c.last=c.last||{g:{},p:{},c:{}};
-    for(const k of ['g','p','c']){
+    for(const k of ['g','p','c','m','a']){
       const arr=g[COLL[k]]=g[COLL[k]]||[];
       const last=c.last[k]=c.last[k]||{},ids=new Set(arr.map(x=>x.id)),changed=new Set();
       arr.forEach(x=>{const o=toSh(c,k,x),h=stable(o);if(last[x.id]!==h){changed.add(x.id);R[k][x.id]={...o,mod:now};pending.push(()=>{last[x.id]=h})}});
@@ -1144,7 +1145,7 @@ async function syncGroup(g){
       Object.keys(R[k]).forEach(id=>{
         if(changed.has(id))return;
         const ro=R[k][id],i=arr.findIndex(x=>x.id===id);
-        if(ro.del){if(i>=0){if(k==='g')revertGasto(arr[i]);if(k==='p')revertPago(arr[i]);arr.splice(i,1);touched=true}delete last[id];return}
+        if(ro.del){if(i>=0){if(k==='g')revertGasto(arr[i]);if(k==='p')revertPago(arr[i]);if(k==='a')revertAporte(arr[i]);arr.splice(i,1);touched=true}delete last[id];return}
         const loc=fromSh(c,k,ro);
         if(i<0){arr.push(k==='g'?{...loc,cashDelta:0,movId:null,vals:null}:k==='p'?{...loc,cashDelta:0,movId:null}:loc);touched=true}
         else if(stable(toSh(c,k,arr[i]))!==stable(mapIds(k,ro,x=>x))){Object.assign(arr[i],loc);if(k==='g')arr[i].vals=null;touched=true}
@@ -1942,11 +1943,11 @@ function vPagos(){
   ${done.length?`<section class="sect"><h2>Pagados</h2>${done.map(i=>row(i)).join('')}</section>`:''}`;
 }
 
-function cardArticle(c,t,all){
+function cardArticle(c,t,all,nav){
     const u=c.limite>0?c.balance/c.limite*100:0,nx=all.find(i=>i.kind==='card'&&i.ref.id===c.id&&!i.rec);
     const p=parse(t),cutThis=clampDay(p.y,p.m,+c.corte);
     const ncut=cutThis>=t?cutThis:(()=>{const n=shiftMonth(monthKey(t),1).split('-').map(Number);return clampDay(n[0],n[1]-1,+c.corte)})();
-    return `<article><button class="${cardCls(c)}"${cardStyle(c)} data-a="editCard" data-id="${c.id}" aria-label="Editar ${esc(c.nombre)}"><div class="nm"><span class="cn"><span class="mono" aria-hidden="true">${esc(cardMono(c))}</span>${esc(c.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>Debes</small><div class="bal">${fmt0(c.balance)}</div><div class="prog"><i style="width:${Math.min(100,u).toFixed(0)}%"></i></div><small style="margin-top:6px">${c.limite>0?`${u.toFixed(0)}% de ${fmt0(c.limite)}`:'Sin límite capturado'}</small></div></button>
+    return `<article><button class="${cardCls(c)}"${cardStyle(c)} data-a="${nav?'verItem':'editCard'}" data-id="${c.id}" aria-label="${nav?'Ver movimientos de':'Editar'} ${esc(c.nombre)}"><div class="nm"><span class="cn"><span class="mono" aria-hidden="true">${esc(cardMono(c))}</span>${esc(c.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>Debes</small><div class="bal">${fmt0(c.balance)}</div><div class="prog"><i style="width:${Math.min(100,u).toFixed(0)}%"></i></div><small style="margin-top:6px">${c.limite>0?`${u.toFixed(0)}% de ${fmt0(c.limite)}`:'Sin límite capturado'}</small></div></button>
       <div style="padding:8px 2px 0"><div class="kv"><span>Corte</span>${+c.corte>=1?`<span>${dshort(ncut)} · ${rel(ncut)}</span>`:`<button class="link" data-a="editCard" data-id="${c.id}">Falta capturarlo</button>`}</div>
       <div class="kv"><span>Siguiente pago</span><span>${nx?(+c.corte>=1?`${dshort(nx.date)} · ${fmt0(nx.amount)}${nx.est?' aprox.':''}`:`Se cuenta tu saldo: ${fmt0(nx.amount)}`):'—'}</span></div>
       ${(c.msi||[]).map(q=>{const hechos=q.meses-q.remaining,end=shiftMonth(monthKey(t),Math.max(0,q.remaining-1)).split('-').map(Number);return `<div class="msi"><div><b>${esc(q.concepto)}</b><span class="muted small">${fmt0(msiMensual(q))} al mes · ${q.remaining>0?`faltan ${q.remaining}`:'liquidado'}</span></div><button class="link" data-a="editMsi" data-id="${c.id}" data-p="${q.id}">Editar</button><div class="prog ${q.remaining===0?'good':''}"><i style="width:${(hechos/q.meses*100).toFixed(0)}%"></i></div></div>`}).join('')}
@@ -1963,7 +1964,31 @@ function itemsTarjetas(){
   });
   return L;
 }
+const movsDe=id=>S.movs.filter(m=>m.cuenta===id||m.metodo===id||m.from===id||m.to===id||(m.key&&m.key.startsWith('k:'+id+':'))).sort((a,b)=>a.fecha<b.fecha?1:a.fecha>b.fecha?-1:0);
+function vDetalle(){
+  const t=todayISO(),all=instances(addDays(t,-60),addDays(t,70));
+  const card=cardOf(ui.det),a=card?null:acc(ui.det);
+  if(!card&&!a){ui.det=null;return vTarjetas()}
+  const L=movsDe(ui.det),mk=monthKey(t),mes=L.filter(m=>monthKey(m.fecha)===mk);
+  const gasto=mes.filter(m=>m.tipo==='egreso'&&m.cat!=='Deuda'&&(card?m.metodo===ui.det:true)).reduce((s,m)=>s+m.monto,0);
+  const ing=a?mes.filter(m=>m.tipo==='ingreso'||(m.tipo==='transfer'&&m.to===ui.det)).reduce((s,m)=>s+m.monto,0):mes.filter(m=>m.key&&m.key.startsWith('k:')).reduce((s,m)=>s+m.monto,0);
+  const nom=card?card.nombre:a.nombre;
+  const row=m=>{
+    let sgn,cls='',lab;
+    if(m.tipo==='transfer'){const entra=m.to===ui.det;sgn=entra?'+':'−';cls=entra?'in':'';lab=entra?`De ${esc((acc(m.from)||{}).nombre||'otra cuenta')}`:`A ${esc((acc(m.to)||{}).nombre||'otra cuenta')}`}
+    else if(card){const pago=m.key&&m.key.startsWith('k:');sgn=pago?'+':'';cls=pago?'in':'';lab=pago?'Pago a la tarjeta':esc(comercioOf(m).rubro)}
+    else{const inn=m.tipo==='ingreso';sgn=inn?'+':'−';cls=inn?'in':'';lab=m.tipo==='egreso'&&m.cat!=='Deuda'?esc(comercioOf(m).rubro):esc(m.cat)}
+    const del=(m.manual||m.fuente==='estado')?` <button class="link" data-a="delMov" data-id="${m.id}">Quitar</button>`:'';
+    return `<div class="row nochk">${rdate(m.fecha)}<div class="rmain"><div class="rname">${esc(m.desc)}</div><div class="rsub"><span class="tag">${lab}</span>${del}</div></div><div class="ramt ${cls}">${sgn}${fmt(m.monto)}</div></div>`;
+  };
+  const face=card?cardArticle(card,t,all,false):cuentaFace(a,false);
+  return `<div><button class="back" data-a="detBack">‹ Tarjetas</button><header class="top"><div><h1>${esc(nom)}</h1></div><button class="btn ghost sm" data-a="${card?'editCard':'editCuenta'}" data-id="${ui.det}">Editar</button></header></div>
+  ${face}
+  <p class="muted" style="margin:0">Este mes: ${card?'compras':'salió'} <b class="n" style="color:var(--ink)">${fmt0(gasto)}</b> · ${card?'pagaste':'entró'} <b class="n" style="color:var(--ink)">${fmt0(ing)}</b></p>
+  <section class="sect"><h2>Movimientos<small>${L.length?L.length+(L.length>80?' · últimos 80':''):''}</small></h2>${L.length?L.slice(0,80).map(row).join(''):'<div class="empty"><b>Sin movimientos todavía</b>Cuando registres un gasto, un pago o subas un estado de cuenta con esta '+(card?'tarjeta':'cuenta')+', aparecen aquí.</div>'}</section>`;
+}
 function vTarjetas(){
+  if(ui.det)return vDetalle();
   const t=todayISO(),all=instances(addDays(t,-60),addDays(t,70));
   const head=`<header class="top"><div><h1>Tarjetas</h1></div>${plusBtn('Agregar tarjeta o cuenta')}</header>`;
   const L=itemsTarjetas();
@@ -1975,13 +2000,14 @@ function vTarjetas(){
     return head+sum+`<p class="small muted" style="margin:0">Sube las que más usas. ${Array.isArray(S.orden)?'<button class="link" data-a="ordAuto">Ordenar solas por uso</button>':'Ahora van ordenadas solas por uso.'}</p>`+
     L.map((x,i)=>{const[c1]=cardColors(x.k==='a'?{...x.o,tipo:x.o.tipo||'debito'}:x.o);return `<div class="row nochk"><div class="rdate"><i class="cdot" style="background:${c1}"></i></div><div class="rmain"><div class="rname">${esc(x.nom)}</div><div class="rsub">${x.tipo} · ${x.uso} movimientos en 90 días</div></div><div class="ract"><button class="btn ghost sm" data-a="ordMove" data-id="${x.id}" data-d="-1" ${i===0?'disabled':''} aria-label="Subir ${esc(x.nom)}">▲</button> <button class="btn ghost sm" data-a="ordMove" data-id="${x.id}" data-d="1" ${i===L.length-1?'disabled':''} aria-label="Bajar ${esc(x.nom)}">▼</button></div></div>`}).join('')+tools;
   }
-  return head+sum+(L.length?L.map(x=>x.k==='c'?cardArticle(x.o,t,all):cuentaFace(x.o)).join(''):'<div class="empty"><b>Sin tarjetas todavía</b>Toca + para agregar una y ver su corte y su fecha de pago.</div>')+tools;
+  return head+sum+(L.length?L.map(x=>x.k==='c'?cardArticle(x.o,t,all,true):cuentaFace(x.o,true)).join(''):'<div class="empty"><b>Sin tarjetas todavía</b>Toca + para agregar una y ver su corte y su fecha de pago.</div>')+tools;
 }
 
 function vMas(){
   const go=(a,t,s)=>`<button class="go" data-a="tab" data-v="${a}"><span><span class="t">${t}</span><br><span class="s">${s}</span></span>${ICON.chev}</button>`;
   return `<header class="top"><h1>Más</h1></header>
   <div>${go('mov','Movimientos y estados de cuenta','Sube un estado para completar lo que olvidaste')}
+  ${go('metas','Metas','Un viaje, una compra o ahorrar en grupo, y si te alcanza')}
   ${go('ahorro','Ahorro','Tus apartados y cuánto crecerían')}
   ${go('alertas','Alertas',alertas().length?`${alertas().length} por revisar`:'Avisos de liquidez con tus propias reglas')}
   ${go('ajustes','Ajustes','Tu nombre, saldo, regla de presupuesto y respaldo')}</div>`;
@@ -2077,6 +2103,7 @@ function vGrupo(g){
   const lista=[...g.gastos.map(x=>({f:x.fecha,k:'g',x})),...g.pagos.map(p=>({f:p.fecha,k:'p',x:p}))].sort((a,b)=>a.f<b.f?1:a.f>b.f?-1:0);
   return head+`<div class="tools"><section class="box"><h2>Cuentas claras<small>contigo</small></h2>${cuentas}</section>
   <section class="box"><h2>Cobros programados<button class="link" data-a="addCargo" data-g="${g.id}">Agregar</button></h2>${(g.cargos||[]).length?g.cargos.map(c=>`<div class="kv"><span>${esc(gName(g,c.miembro))}: ${esc(c.concepto)}, día ${c.dia}</span><span><span class="n">${fmt(c.monto)}</span> <button class="btn ghost sm" data-a="editCargo" data-g="${g.id}" data-id="${c.id}">Editar</button></span></div>`).join(''):'<div class="small muted">Para rentas de cuarto u otros cobros que se repiten cada mes.</div>'}<div style="margin-top:12px"><button class="btn ghost sm" data-a="addPago" data-g="${g.id}">Registrar pago entre personas</button></div></section></div>
+  ${gMetasHTML(g)}
   <section class="sect"><h2>Gastos y pagos del grupo</h2>${lista.length?lista.map(({k,x})=>k==='g'?`<div class="row nochk">${rdate(x.fecha)}<button class="rmain" data-a="editGasto" data-g="${g.id}" data-id="${x.id}"><div class="rname">${esc(x.desc)}</div><div class="rsub">${x.pagador==='yo'?'Pagaste tú'+(x.pmedio&&medioName(x.pmedio)?' con '+esc(medioName(x.pmedio)):''):'Pagó '+esc(gName(g,x.pagador))} · ${Object.keys(x.partes).map(id=>`${esc(id==='yo'?'tú':gName(g,id))} ${fmt0(x.partes[id])}`).join(', ')}</div></button><div class="ramt">${fmt(x.monto)}</div></div>`:`<div class="row nochk">${rdate(x.fecha)}<div class="rmain"><div class="rname">${x.de==='yo'?`Le pagaste a ${esc(gName(g,x.a))}`:x.a==='yo'?`${esc(gName(g,x.de))} te pagó`:`${esc(gName(g,x.de))} le pagó a ${esc(gName(g,x.a))}`}</div><div class="rsub"><span class="tag ok">Pago</span>${esc(x.nota||'')}</div></div><div class="ramt in">${fmt(x.monto)}</div><div class="ract"><button class="link" data-a="delPago" data-g="${g.id}" data-id="${x.id}">Quitar</button></div></div>`).join(''):'<div class="empty"><b>Sin gastos todavía</b>Toca + para registrar el primero.</div>'}</section>`;
 }
 
@@ -2100,9 +2127,9 @@ function vAjustes(){
 }
 
 /* ===== vistas: cuentas, comercios, historial, ahorro y alertas ===== */
-function cuentaFace(a){
+function cuentaFace(a,nav){
   const x={...a,tipo:a.tipo||'debito'};
-  return `<article><button class="${cardCls(x)}"${cardStyle(x)} data-a="editCuenta" data-id="${a.id}" aria-label="Editar ${esc(a.nombre)}"><div class="nm"><span class="cn"><span class="mono" aria-hidden="true">${esc(cardMono(x))}</span>${esc(a.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>${esc(ACC_T[a.tipo]||'Cuenta')}${a.tipo==='ahorro'&&a.liq?' · disponible':''}${a.banco?' · '+esc(a.banco):''}</small><div class="bal">${fmt0(a.saldo)}</div>${a.tipo==='ahorro'&&a.tasa?`<small style="margin-top:6px">${rendTxt(a)}</small>`:''}</div></button></article>`;
+  return `<article><button class="${cardCls(x)}"${cardStyle(x)} data-a="${nav?'verItem':'editCuenta'}" data-id="${a.id}" aria-label="${nav?'Ver movimientos de':'Editar'} ${esc(a.nombre)}"><div class="nm"><span class="cn"><span class="mono" aria-hidden="true">${esc(cardMono(x))}</span>${esc(a.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>${esc(ACC_T[a.tipo]||'Cuenta')}${a.tipo==='ahorro'&&a.liq?' · disponible':''}${a.banco?' · '+esc(a.banco):''}</small><div class="bal">${fmt0(a.saldo)}</div>${a.tipo==='ahorro'&&a.tasa?`<small style="margin-top:6px">${rendTxt(a)}</small>`:''}</div></button></article>`;
 }
 
 function vComercios(){
@@ -2232,6 +2259,136 @@ function vAlertas(){
     <div class="fgrid">${num('emerg','Meses de gastos que quiero tener','')}</div>
   </section>`;
 }
+/* ===== metas: personales y de grupo ===== */
+const metasP=()=>S.metas=S.metas||[];
+const metaAcc=m=>m.cuentaId?acc(m.cuentaId):null;
+function metaAhorrado(m){const a=metaAcc(m);return a?Math.max(0,r2((+a.saldo||0)-(+m.base||0))):r2(+m.aportado||0)}
+const metaTasa=m=>{const a=metaAcc(m);return a&&a.tipo==='ahorro'?(+a.tasa||0):0};
+const mesesHasta=f=>Math.max(1,Math.ceil(Math.max(1,dnum(f)-dnum(todayISO()))/30.4-0.15));
+const mesesDe=x=>x.meses?Math.max(1,Math.round(+x.meses)):mesesHasta(x.fecha);
+function depNecesario(x){const falta=Math.max(0,(+x.monto||0)-(+x.ahorrado||0));return falta<=0?0:r2(needDeposit({saldo:+x.ahorrado||0,meta:+x.monto,tasa:+x.tasa||0,meses:mesesDe(x)}))}
+const metaDone=m=>metaAhorrado(m)>=(+m.monto||0);
+function gMetaAportado(g,mid){return (g.aportes||[]).filter(a=>a.meta===mid).reduce((s,a)=>s+(+a.monto||0),0)}
+function gMetaDep(g,x){return depNecesario({monto:x.monto,ahorrado:gMetaAportado(g,x.id),fecha:x.fecha,tasa:0})}
+const gMetaCuota=(g,x)=>r2(gMetaDep(g,x)/((g.miembros||[]).length+1));
+function capacidad(exclM,exclG){
+  const m=metrics(),ing=+m.ingM||0,gasto=+m.gastoM||0;
+  let otras=metasP().filter(x=>x.id!==exclM&&x.fecha&&!metaDone(x)).reduce((s,x)=>s+depNecesario({monto:+x.monto,ahorrado:metaAhorrado(x),fecha:x.fecha,tasa:metaTasa(x)}),0);
+  S.grupos.forEach(g=>(g.metas||[]).forEach(x=>{if(x.id!==exclG&&x.fecha&&gMetaAportado(g,x.id)<x.monto)otras+=gMetaCuota(g,x)}));
+  otras=r2(otras);
+  return{ing,gasto,otras,sobra:r2(ing-gasto-otras)};
+}
+function planMeta(x,exclM,exclG){
+  const meses=mesesDe(x),falta=Math.max(0,(+x.monto||0)-(+x.ahorrado||0)),dep=depNecesario(x),cap=capacidad(exclM,exclG);
+  const o={meses,falta,dep,cap,hecho:falta<=0,alcanza:cap.ing>0&&cap.sobra>=dep};
+  if(!o.hecho&&!o.alcanza&&cap.sobra>0){const r=(+x.tasa||0)/1200;let b=+x.ahorrado||0,n=0;while(b<x.monto&&n<600){b=b*(1+r)+cap.sobra;n++}o.nReal=n<600?n:null}
+  return o;
+}
+function veredictoHTML(pl,bk){
+  if(pl.hecho)return '<div class="alert good">¡Ya llegaste a tu meta!</div>';
+  const c=pl.cap;
+  if(!(c.ing>0))return '<div class="alert warn">Para decirte si te alcanza necesito tus ingresos. Agrégalos en Pagos (tipo ingreso).</div>';
+  const nota=bk?`<div class="small muted" style="margin-top:6px">Ingresos ${fmt0(c.ing)} − gastos, tarjetas y gasto diario ${fmt0(c.gasto)}${c.otras>0?' − otras metas '+fmt0(c.otras):''} = te sobran ${fmt0(c.sobra)} al mes.</div>`:'';
+  if(pl.alcanza)return `<div class="alert good">Te alcanza. Apartando <b>${fmt0(pl.dep)}</b> al mes llegas en ${pl.meses} ${pl.meses===1?'mes':'meses'} y te siguen sobrando ${fmt0(c.sobra-pl.dep)} al mes.</div>${nota}`;
+  if(c.sobra<=0)return `<div class="alert bad">Así no alcanza: necesitas <b>${fmt0(pl.dep)}</b> al mes y hoy no te sobra dinero después de tus gastos. Revisa gastos o alarga el plazo.</div>${nota}`;
+  return `<div class="alert warn">Así no alcanza: necesitas <b>${fmt0(pl.dep)}</b> al mes y te sobran ${fmt0(c.sobra)}. ${pl.nReal?`Con lo que te sobra llegarías en ${pl.nReal} meses.`:'Alarga el plazo o baja el monto.'}</div>${nota}`;
+}
+function vMetas(){
+  const L=metasP(),cap=capacidad();
+  const head=`<header class="top"><div><h1>Metas</h1><p>Lo que quieres lograr y si te alcanza.</p></div>${plusBtn('Nueva meta')}</header>`;
+  const sm=S.simMeta=S.simMeta||{};
+  const inp=(k,l,ph)=>`<div class="fld"><label for="sm2_${k}">${l}</label><input id="sm2_${k}" data-smeta="${k}" type="number" inputmode="decimal" step="any" value="${esc(sm[k]??'')}" placeholder="${ph||''}"></div>`;
+  let res='';
+  if(+sm.monto>0&&+sm.meses>0){
+    const pl=planMeta({monto:+sm.monto,ahorrado:+sm.ahorrado||0,meses:+sm.meses,tasa:+sm.tasa||0});
+    res=veredictoHTML(pl,true)+`<div class="chips" style="margin-top:10px"><button class="btn sm" data-a="metaDeSim">Guardar como meta</button></div>`;
+  }
+  const lista=L.map(m=>{
+    const a=metaAhorrado(m),pct=m.monto>0?Math.min(100,a/m.monto*100):0,ac=metaAcc(m);
+    const pl=planMeta({monto:+m.monto,ahorrado:a,fecha:m.fecha,tasa:metaTasa(m)},m.id);
+    return `<section class="sect"><div class="kv"><span><b style="color:var(--ink)">${esc(m.nombre)}</b></span><span class="n">${fmt0(a)} de ${fmt0(m.monto)}</span></div><div class="prog"><i style="width:${pct.toFixed(0)}%"></i></div><div class="small muted" style="margin:6px 0 8px">Para el ${dshort(m.fecha)} · ${pl.hecho?'lograda':`faltan ${pl.meses} ${pl.meses===1?'mes':'meses'}`}${ac?` · en ${esc(ac.nombre)}`:''}</div>${veredictoHTML(pl,false)}<div class="chips" style="margin-top:10px">${ac?`<button class="btn sm" data-a="transfer" data-to="${ac.id}">Meter dinero</button>`:`<button class="btn sm" data-a="aportarMeta" data-id="${m.id}">Aportar</button>`}<button class="btn ghost sm" data-a="editMeta" data-id="${m.id}">Editar</button></div></section>`;
+  }).join('');
+  const gm=S.grupos.flatMap(g=>(g.metas||[]).map(x=>({g,x}))).map(({g,x})=>{const ap=gMetaAportado(g,x.id);return `<div class="row nochk"><div class="rmain"><div class="rname">${esc(x.nombre)}</div><div class="rsub">${esc(g.nombre)} · ${fmt0(ap)} de ${fmt0(x.monto)} · tu parte ≈ ${fmt0(gMetaCuota(g,x))} al mes</div></div><div class="ract"><button class="link" data-a="irGrupo" data-id="${g.id}">Ver</button></div></div>`}).join('');
+  return head+`<section class="sect"><h2>Lo que te sobra al mes<small>${fmt0(cap.sobra)}</small></h2><div class="small muted">${cap.ing>0?`Ingresos ${fmt0(cap.ing)} − gastos, tarjetas y gasto diario ${fmt0(cap.gasto)}${cap.otras>0?' − tus metas ya puestas '+fmt0(cap.otras):''}. Es una estimación con lo que tienes capturado.`:'Agrega tus ingresos en Pagos para calcular cuánto te sobra.'}</div></section>
+  <section class="sect"><h2>¿Me alcanza?<small>prueba una compra o un viaje</small></h2><div class="fgrid">${inp('monto','Cuánto cuesta','50000')}${inp('meses','En cuántos meses','12')}${inp('ahorrado','Ya tengo ahorrado (opcional)','0')}${inp('tasa','Tasa anual % si lo inviertes (opcional)','0')}</div>${res}</section>
+  ${lista||'<div class="empty"><b>Sin metas todavía</b>Toca + para crear una: un viaje, una bici, un fondo de emergencia.</div>'}
+  ${gm?`<section class="sect"><h2>Metas de tus grupos</h2>${gm}</section>`:''}`;
+}
+function editMeta(id,pre){
+  const m=id?metasP().find(x=>x.id===id):null;
+  const v=m?{...m,aportado:m.aportado||'',monto:m.monto||'',desde:m.desde||'todo'}:{nombre:'',monto:'',fecha:addDays(todayISO(),365),cuentaId:'',desde:'todo',aportado:'',...(pre||{})};
+  openForm({title:m?'Editar meta':'Nueva meta',vals:v,del:!!m,
+    note:'Si eliges una cuenta, tu avance es lo que hay en ella. Si no, vas anotando lo que aportas.',
+    fields:v=>[
+      {k:'nombre',label:'¿Para qué es?',ph:'Bici, viaje, fondo de emergencia…'},
+      {k:'monto',label:'Cuánto necesitas',type:'number'},
+      {k:'fecha',label:'¿Para cuándo?',type:'date'},
+      {k:'cuentaId',label:'¿En qué cuenta lo vas guardando?',type:'select',full:1,dep:1,opts:[['','Ninguna, anoto lo que aporto'],...accs().map(a=>[a.id,a.nombre])]},
+      ...(v.cuentaId?[{k:'desde',label:'¿Qué cuenta como avance?',type:'select',full:1,opts:[['todo','Todo lo que hay en la cuenta'],['hoy','Solo lo que meta desde hoy']]}]:[{k:'aportado',label:'Llevo ahorrado',type:'number'}])],
+    save:v=>{
+      if(!String(v.nombre||'').trim())return 'Ponle un nombre a la meta.';
+      if(!(num(v.monto)>0))return 'El monto debe ser mayor a 0.';
+      if(!v.fecha||v.fecha<=todayISO())return 'Elige una fecha futura.';
+      const a=v.cuentaId?acc(v.cuentaId):null;
+      let base=0;if(a&&v.desde==='hoy')base=(m&&m.cuentaId===v.cuentaId&&m.desde==='hoy')?m.base:(+a.saldo||0);
+      const o={nombre:v.nombre.trim(),monto:num(v.monto),fecha:v.fecha,cuentaId:a?a.id:'',desde:a?v.desde:'todo',base,aportado:a?0:num(v.aportado)};
+      if(m)Object.assign(m,o);else metasP().push({id:uid(),creada:todayISO(),...o});
+      commit('Meta guardada');},
+    onDel:()=>{S.metas=metasP().filter(x=>x.id!==id);commit('Meta eliminada')}});
+}
+function aportarMeta(id){
+  const m=metasP().find(x=>x.id===id);if(!m)return;
+  openForm({title:'Aportar a '+m.nombre,vals:{monto:''},saveLabel:'Sumar',
+    note:'Solo suma a tu avance. Si el dinero está en una cuenta de la app, mejor elígela en la meta y usa "Meter dinero".',
+    fields:()=>[{k:'monto',label:'Cuánto aportas',type:'number'}],
+    save:v=>{if(!(num(v.monto)>0))return 'El monto debe ser mayor a 0.';m.aportado=r2((+m.aportado||0)+num(v.monto));commit('Aporte sumado')}});
+}
+/* ----- metas de grupo ----- */
+function revertAporte(x){if(x&&x.cashDelta)moveCash(-x.cashDelta,x.cuentaId)}
+function editMetaGrupo(gid,id){
+  const g=S.grupos.find(x=>x.id===gid);if(!g)return;g.metas=g.metas||[];g.aportes=g.aportes||[];
+  const m=id?g.metas.find(x=>x.id===id):null;
+  openForm({title:m?'Editar meta del grupo':'Nueva meta del grupo',vals:m?{...m}:{nombre:'',monto:'',fecha:addDays(todayISO(),180)},del:!!m,
+    note:'Todos en el grupo ven la meta y lo que cada quien aporta.',
+    fields:()=>[{k:'nombre',label:'¿Para qué es?',ph:'Viaje, regalo, depa…'},{k:'monto',label:'Cuánto necesitan juntos',type:'number'},{k:'fecha',label:'¿Para cuándo?',type:'date'}],
+    save:v=>{
+      if(!String(v.nombre||'').trim())return 'Ponle un nombre a la meta.';
+      if(!(num(v.monto)>0))return 'El monto debe ser mayor a 0.';
+      if(!v.fecha||v.fecha<=todayISO())return 'Elige una fecha futura.';
+      const o={nombre:v.nombre.trim(),monto:num(v.monto),fecha:v.fecha};
+      if(m)Object.assign(m,o);else g.metas.push({id:uid(),...o});
+      commit('Meta guardada');},
+    onDel:()=>{g.aportes.filter(a=>a.meta===id).forEach(revertAporte);g.aportes=g.aportes.filter(a=>a.meta!==id);g.metas=g.metas.filter(x=>x.id!==id);commit('Meta eliminada')}});
+}
+function aportarGrupo(gid,mid){
+  const g=S.grupos.find(x=>x.id===gid),m=g&&(g.metas||[]).find(x=>x.id===mid);if(!m)return;
+  const cuentas=[['','Solo anotarlo, no mover dinero'],...accs().filter(isLiquid).map(a=>[a.id,'Sale de '+a.nombre])];
+  openForm({title:'Aportar a '+m.nombre,vals:{monto:gMetaCuota(g,m)||'',fecha:todayISO(),cuenta:''},saveLabel:'Aportar',
+    fields:()=>[{k:'monto',label:'Cuánto aportas',type:'number',hint:'Tu parte aproximada ya viene escrita.'},{k:'fecha',label:'Fecha',type:'date'},{k:'cuenta',label:'¿De dónde sale?',type:'select',full:1,opts:cuentas,hint:'Si eliges una cuenta, se resta de su saldo.'}],
+    save:v=>{
+      if(!(num(v.monto)>0))return 'El monto debe ser mayor a 0.';
+      const x={id:uid(),meta:mid,miembro:'yo',fecha:v.fecha||todayISO(),monto:num(v.monto)};
+      if(v.cuenta){x.cashDelta=-x.monto;x.cuentaId=moveCash(-x.monto,v.cuenta)}
+      g.aportes=g.aportes||[];g.aportes.unshift(x);commit('Aporte registrado');}});
+}
+function delAporte(gid,aid){const g=S.grupos.find(x=>x.id===gid);if(!g)return;const x=(g.aportes||[]).find(a=>a.id===aid);if(!x)return;revertAporte(x);g.aportes=g.aportes.filter(a=>a.id!==aid);commit('Aporte quitado')}
+function gMetasHTML(g){
+  const L=g.metas||[];
+  const me=cap=>cap;
+  const items=L.map(x=>{
+    const ap=gMetaAportado(g,x.id),pct=x.monto>0?Math.min(100,ap/x.monto*100):0,done=ap>=x.monto;
+    const dep=gMetaDep(g,x),cuota=gMetaCuota(g,x),meses=mesesHasta(x.fecha),cap=capacidad(null,x.id);
+    const porQ={};(g.aportes||[]).filter(a=>a.meta===x.id).forEach(a=>porQ[a.miembro]=(porQ[a.miembro]||0)+a.monto);
+    const quienes=Object.keys(porQ).map(id=>`${esc(id==='yo'?'Tú':gName(g,id))} ${fmt0(porQ[id])}`).join(' · ');
+    const mios=(g.aportes||[]).filter(a=>a.meta===x.id&&a.miembro==='yo').slice(0,3).map(a=>`<span class="small muted">${dshort(a.fecha)} ${fmt0(a.monto)} <button class="link" data-a="delAporte" data-g="${g.id}" data-id="${a.id}">Quitar</button></span>`).join('<br>');
+    const cabe=done?'':cap.ing>0?(cap.sobra>=cuota?`Tu parte cabe en lo que te sobra (${fmt0(cap.sobra)} al mes).`:`Tu parte es más de lo que te sobra (${fmt0(cap.sobra)} al mes).`):'';
+    return `<div class="box" style="margin-bottom:10px"><div class="kv"><span><b style="color:var(--ink)">${esc(x.nombre)}</b></span><span class="n">${fmt0(ap)} de ${fmt0(x.monto)}</span></div><div class="prog"><i style="width:${pct.toFixed(0)}%"></i></div>
+    <div class="small muted" style="margin:6px 0">Para el ${dshort(x.fecha)}${done?' · ¡lograda!':` · faltan ${meses} ${meses===1?'mes':'meses'} · juntos ${fmt0(dep)} al mes, cada quien ≈ ${fmt0(cuota)}`}</div>
+    ${quienes?`<div class="small" style="margin-bottom:6px">${quienes}</div>`:''}${cabe?`<div class="small muted">${cabe}</div>`:''}${mios?`<div style="margin-top:6px">${mios}</div>`:''}
+    <div class="chips" style="margin-top:10px"><button class="btn sm" data-a="aportarGrupo" data-g="${g.id}" data-id="${x.id}">Aportar</button><button class="btn ghost sm" data-a="editMetaGrupo" data-g="${g.id}" data-id="${x.id}">Editar</button></div></div>`;
+  }).join('');
+  return `<section class="sect"><h2>Metas del grupo<small><button class="link" data-a="editMetaGrupo" data-g="${g.id}">Nueva meta</button></small></h2>${items||'<div class="small muted">Ahorren juntos para un viaje, un regalo o lo que sea. Cada quien aporta y todos ven el avance.</div>'}</section>`;
+}
 
 /* ===== bienvenida y ejemplo ===== */
 function welcome(){
@@ -2286,13 +2443,13 @@ const NAVI={
   resumen:'<svg viewBox="0 0 24 24"><path d="M5 20V11M12 20V4M19 20v-6"/></svg>',
   grupos:'<svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="10" r="2.4"/><path d="M16 14.2a4.6 4.6 0 0 1 5 4.3"/></svg>'};
 const TABS=[['hoy','Hoy'],['pagos','Pagos'],['tarjetas','Tarjetas'],['resumen','Resumen'],['grupos','Grupos']];
-const SUB=['mas','mov','ajustes','ahorro','alertas'];
+const SUB=['mas','mov','ajustes','ahorro','alertas','metas'];
 function render(){
   IM={};
   if(!S){$('#nav').innerHTML='';$('#main').innerHTML=OB?obView():welcome();return}
   const cur=SUB.includes(ui.tab)?'':ui.tab;
   $('#nav').innerHTML=`<div class="bar">${TABS.map(([k,l])=>`<button data-a="tab" data-v="${k}" ${cur===k?'aria-current="page"':''}>${NAVI[k]}${l}</button>`).join('')}</div>`;
-  const V={hoy:vHoy,pagos:vPagos,tarjetas:vTarjetas,mas:vMas,resumen:vResumen,mov:vMov,grupos:vGrupos,ajustes:vAjustes,ahorro:vAhorro,alertas:vAlertas};
+  const V={hoy:vHoy,pagos:vPagos,tarjetas:vTarjetas,mas:vMas,resumen:vResumen,mov:vMov,grupos:vGrupos,ajustes:vAjustes,ahorro:vAhorro,alertas:vAlertas,metas:vMetas};
   const sy=window.scrollY;
   const back=SUB.includes(ui.tab)?(ui.tab==='mas'?'<button class="back" data-a="tab" data-v="hoy" style="align-self:flex-start">‹ Hoy</button>':'<button class="back" data-a="tab" data-v="mas" style="align-self:flex-start">‹ Más</button>'):'';
   $('#main').toggleAttribute('data-sub',SUB.includes(ui.tab));
@@ -2303,14 +2460,14 @@ function saveUI(){try{localStorage.setItem(UIKEY,JSON.stringify({tab:ui.tab,them
 
 /* ===== eventos ===== */
 const A={
-  tab:el=>{ui.tab=el.dataset.v;ui.wipe=false;saveUI();render();window.scrollTo(0,0)},
+  tab:el=>{ui.tab=el.dataset.v;ui.det=null;ui.wipe=false;saveUI();render();window.scrollTo(0,0)},
   mes:el=>{ui.mes=shiftMonth(ui.mes,+el.dataset.d);render()},
   seg:el=>{ui.sub[el.dataset.key]=el.dataset.v;if(el.dataset.key==='mov'&&el.dataset.v==='estado'&&!ST)ST=newST();render()},
   tiraDia:el=>{ui.sel=ui.sel===el.dataset.d?null:el.dataset.d;render()},
   pay:el=>{const i=IM[el.dataset.k];if(!i)return;(i.kind==='card'||i.est)?askPay(i):quickPay(i)},
   snUndo:()=>{if(SN){undoInst(SN.key);SN=null;$('#toast').innerHTML='';commit('Pago deshecho')}},
   snShare:()=>snShare(),
-  add:()=>{const t=ui.tab;if(t==='pagos')editItem();else if(t==='tarjetas')tarjetaMenu();else if(t==='ahorro')editCuenta(null,'ahorro');else if(t==='mov')editMov();else if(t==='grupos')ui.grupo?editGasto(ui.grupo):editGrupo();else addMenu()},
+  add:()=>{const t=ui.tab;if(t==='pagos')editItem();else if(t==='tarjetas')tarjetaMenu();else if(t==='ahorro')editCuenta(null,'ahorro');else if(t==='mov')editMov();else if(t==='metas')editMeta();else if(t==='grupos')ui.grupo?editGasto(ui.grupo):editGrupo();else addMenu()},
   menuPago:()=>{closeModal();editItem(null,'egreso')},menuIngreso:()=>{closeModal();editItem(null,'ingreso')},menuGasto:()=>{closeModal();editMov()},menuCompartido:()=>{closeModal();menuCompartido()},pickGrupo:b=>{closeModal();editGasto(b.dataset.id)},menuEfectivo:()=>efectivoMenu(),efAgregar:()=>{closeModal();editEfectivoIn()},efSacar:()=>{closeModal();efSacar()},efGasto:()=>{closeModal();efGasto()},
   undo:el=>{undoInst(el.dataset.k);$('#toast').innerHTML='';commit('Pago deshecho')},
   editinst:el=>{const i=IM[el.dataset.k];if(!i)return;i.kind==='item'?editItem(i.ref.id):editCard(i.ref.id)},
@@ -2366,6 +2523,11 @@ const A={
   ordToggle:()=>{ui.ord=!ui.ord;render()},
   ordAuto:()=>{S.orden=null;commit()},
   ordMove:el=>{const L=itemsTarjetas().map(x=>x.id),i=L.indexOf(el.dataset.id),j=i+(+el.dataset.d);if(i<0||j<0||j>=L.length)return;[L[i],L[j]]=[L[j],L[i]];S.orden=L;commit()},
+  verItem:el=>{ui.det=el.dataset.id;render();window.scrollTo(0,0)},detBack:()=>{ui.det=null;render()},
+  editMeta:el=>editMeta(el.dataset.id),aportarMeta:el=>aportarMeta(el.dataset.id),
+  metaDeSim:()=>{const sm=S.simMeta||{};editMeta(null,{monto:sm.monto||'',fecha:addDays(todayISO(),Math.round((+sm.meses||12)*30.4)),aportado:sm.ahorrado||''})},
+  editMetaGrupo:el=>editMetaGrupo(el.dataset.g,el.dataset.id),aportarGrupo:el=>aportarGrupo(el.dataset.g,el.dataset.id),delAporte:el=>delAporte(el.dataset.g,el.dataset.id),
+  irGrupo:el=>{ui.tab='grupos';ui.grupo=el.dataset.id;saveUI();render();window.scrollTo(0,0)},
   joinGrupo:()=>joinForm(),invitar:el=>{const g=S.grupos.find(x=>x.id===el.dataset.id);if(g&&g.cloud)shareInvite(g)},signup:()=>signupForm(),startGuide:()=>startGuide(),
   syncGrupo:async el=>{const g=S.grupos.find(x=>x.id===el.dataset.id);if(!g||!cloudOn())return;toast('Sincronizando…');try{await syncGroup(g);persist(true);render();toast('Grupo al día')}catch(e){toast('No se pudo sincronizar')}}
 };
@@ -2403,6 +2565,7 @@ document.addEventListener('change',e=>{
   const el=e.target;
   if(el.dataset.sim&&S){S.sim=S.sim||{};S.sim[el.dataset.sim]=el.value;if(el.dataset.sim==='cuenta'){const a=acc(el.value);if(a){S.sim.saldo=a.saldo;S.sim.tasa=a.tasa||0}}persist();render();return}
   if(el.dataset.obc&&OB){obSet(el.dataset.obc,el.checked);return}
+  if(el.dataset.smeta&&S){S.simMeta=S.simMeta||{};S.simMeta[el.dataset.smeta]=el.value;persist();render();return}
   if(el.dataset.cv&&S){S.contarVencidos=el.checked;persist();render();return}
   if(el.dataset.al&&S){S.alertas=mergeAlertas(S.alertas);S.alertas[el.dataset.al]=num(el.value);persist();render();return}
   if(el.dataset.alc&&S){S.alertas=mergeAlertas(S.alertas);S.alertas.act[el.dataset.alc]=el.checked;persist();render();return}
