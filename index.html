@@ -771,11 +771,12 @@ function editCuenta(id,tipo){
       {k:'tipo',label:'Tipo',type:'select',opts:Object.entries(ACC_T),dep:1},
       {k:'banco',label:'Banco (opcional)',ph:'Santander, BBVA, NU…'},
       {k:'saldo',label:'Saldo hoy',type:'number',hint:'Cuádralo con tu banco.'},
-      ...(v.tipo==='ahorro'?[{k:'tasa',label:'Tasa anual %',type:'number',hint:'La que te da el banco por ese apartado. Sirve para proyectar.'},{k:'liq',label:'Lo puedo usar cuando quiera',type:'check',hint:'Si lo activas, cuenta como dinero disponible y entra en tus avisos de liquidez.'}]:[]),
+      ...(v.tipo==='ahorro'?[{k:'tasa',label:'Tasa anual %',type:'number',hint:'La que te da el banco por ese apartado. Sirve para proyectar.'},{k:'pago',label:'¿Cuándo te da los rendimientos?',type:'select',opts:PAGOS_REND,full:1,hint:'Si eliges una opción, la app los calcula sola. Es aproximado: no resta impuestos, así que si tu saldo real difiere, corrígelo arriba.'},{k:'liq',label:'Lo puedo usar cuando quiera',type:'check',hint:'Si lo activas, cuenta como dinero disponible y entra en tus avisos de liquidez.'}]:[]),
       {k:'color',label:'Color',type:'select',opts:COLORES}],
     save:v=>{
       if(!String(v.nombre||'').trim())return 'Ponle un nombre.';
-      const o={nombre:v.nombre.trim(),banco:String(v.banco||'').trim(),tipo:v.tipo,saldo:r2(num(v.saldo)),tasa:v.tipo==='ahorro'?num(v.tasa):0,liq:v.tipo==='ahorro'&&!!v.liq,color:v.color};
+      const o={nombre:v.nombre.trim(),banco:String(v.banco||'').trim(),tipo:v.tipo,saldo:r2(num(v.saldo)),tasa:v.tipo==='ahorro'?num(v.tasa):0,pago:v.tipo==='ahorro'&&num(v.tasa)>0?(v.pago||''):'',liq:v.tipo==='ahorro'&&!!v.liq,color:v.color};
+      if(!a||(a.pago||'')!==o.pago){o.rendTo=todayISO();o.pend=0}
       if(a)Object.assign(a,o);else accs().push({id:uid(),...o});
       recalcCash();commit('Guardado');},
     onDel:()=>{S.cuentas=accs().filter(x=>x.id!==id);recalcCash();commit('Cuenta eliminada')}});
@@ -1207,6 +1208,7 @@ async function cloudPull(){
     setOwner(AU.uid);
     dbState='cloud';
   }catch(e){window.HOLD=false;dbState=AU?(navigator.onLine?'error':'offline'):'local'}
+  if(S)accrueAll();
   await syncAll();
   if(!M)render();
 }
@@ -1274,7 +1276,7 @@ async function runInvite(){
   if(M&&M.save){const e=await M.save(M.vals);if(e){M.err=e;renderModal()}}
 }
 function afterAuth(){if(INV)runInvite()}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cloudOn())syncAll()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)return;if(S&&accrueAll()&&!M)render();if(cloudOn())syncAll()});
 setInterval(()=>{if(!document.hidden&&cloudOn())syncAll()},60000);
 
 /* ===== cuentas, comercios, historial, ahorro y alertas ===== */
@@ -1292,6 +1294,34 @@ function moveCash(delta,cid){
   if(!delta)return a?a.id:undefined;
   if(!a){a={id:uid(),nombre:'Débito',banco:'',tipo:'debito',saldo:0,tasa:0,color:'teal'};accs().push(a)}
   a.saldo=r2((+a.saldo||0)+delta);recalcCash();return a.id;
+}
+const PAGOS_REND=[['','No lo calculo, yo actualizo el saldo'],['diario','Todos los días, se suma al saldo (ej. Nu)'],['mensual','Se acredita el día 1 del mes siguiente (ej. Finsus)']];
+function accrueAcc(a,today){
+  if(!a||a.tipo!=='ahorro'||!a.pago||!(+a.tasa>0)){return false}
+  if(!a.rendTo){a.rendTo=today;return true}
+  let d=a.rendTo,n=0;
+  while(d<today&&n<400){
+    d=addDays(d,1);n++;
+    const i=(+a.saldo||0)*a.tasa/36500;
+    if(a.pago==='diario')a.saldo=r2((+a.saldo||0)+i);else a.pend=(a.pend||0)+i;
+    if(a.pago==='mensual'&&d.slice(8)==='01'&&a.pend>0){a.saldo=r2((+a.saldo||0)+a.pend);a.ultAcred={fecha:d,monto:r2(a.pend)};a.pend=0}
+  }
+  if(n>=400)d=today;
+  a.rendTo=d;return n>0;
+}
+function accrueAll(){
+  if(!S)return false;
+  const t=todayISO();let ch=false;
+  accs().forEach(a=>{if(accrueAcc(a,t))ch=true});
+  if(ch){recalcCash();persist()}
+  return ch;
+}
+function rendTxt(a){
+  if(!(+a.tasa>0))return 'Sin tasa capturada';
+  const m=fmt0(a.saldo*a.tasa/1200);
+  if(a.pago==='diario')return `${a.tasa}% anual · se suma cada día · ≈${m} al mes`;
+  if(a.pago==='mensual'){const n=new Date();const f=new Date(n.getFullYear(),n.getMonth()+1,1).toLocaleDateString('es-MX',{day:'numeric',month:'long'});return `${a.tasa}% anual · van ${fmt(a.pend||0)} este mes · se acredita el ${f}`}
+  return `${a.tasa}% anual · rinde unos ${m} al mes`;
 }
 function initCuentas(o){
   if(!Array.isArray(o.cuentas)||!o.cuentas.length)o.cuentas=[{id:'main',nombre:'Débito',banco:'',tipo:'debito',saldo:r2(o.cash),tasa:0,color:'teal'}];
@@ -1982,7 +2012,7 @@ function vAjustes(){
 /* ===== vistas: cuentas, comercios, historial, ahorro y alertas ===== */
 function vCuentas(){
   const as=accs(),ah=as.filter(a=>a.tipo==='ahorro'),tAh=ah.reduce((s,a)=>s+(+a.saldo||0),0),tAhFijo=ah.filter(a=>!a.liq).reduce((s,a)=>s+(+a.saldo||0),0);
-  const face=a=>`<article><button class="cardface c-${a.color||'teal'}" data-a="editCuenta" data-id="${a.id}" aria-label="Editar ${esc(a.nombre)}"><div class="nm"><span>${esc(a.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>${esc(ACC_T[a.tipo]||'Cuenta')}${a.tipo==='ahorro'&&a.liq?' · disponible':''}${a.banco?' · '+esc(a.banco):''}</small><div class="bal">${fmt0(a.saldo)}</div>${a.tipo==='ahorro'&&a.tasa?`<small style="margin-top:6px">${a.tasa}% anual · rinde unos ${fmt0(a.saldo*a.tasa/1200)} al mes</small>`:''}</div></button></article>`;
+  const face=a=>`<article><button class="cardface c-${a.color||'teal'}" data-a="editCuenta" data-id="${a.id}" aria-label="Editar ${esc(a.nombre)}"><div class="nm"><span>${esc(a.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>${esc(ACC_T[a.tipo]||'Cuenta')}${a.tipo==='ahorro'&&a.liq?' · disponible':''}${a.banco?' · '+esc(a.banco):''}</small><div class="bal">${fmt0(a.saldo)}</div>${a.tipo==='ahorro'&&a.tasa?`<small style="margin-top:6px">${rendTxt(a)}</small>`:''}</div></button></article>`;
   return `<div><p class="muted" style="margin:0">Disponible <b class="n" style="color:var(--ink)">${fmt0(S.cash)}</b>${tAhFijo>0?` · Apartado aparte <b class="n" style="color:var(--ink)">${fmt0(tAhFijo)}</b>`:''}</p></div>
   ${as.map(face).join('')}
   <div class="chips">${as.length>1?'<button class="btn sm" data-a="transfer">Pasar dinero entre cuentas</button>':''}<button class="btn ghost sm" data-a="tab" data-v="ahorro">Ver ahorro</button></div>`;
@@ -2074,7 +2104,7 @@ function vAhorro(){
     }
   }
   return `<header class="top"><div><h1>Ahorro</h1><p>${ah.length?`En apartados <b class="n" style="color:var(--ink)">${fmt0(tAh)}</b>`:'Proyecta cuánto crecería tu dinero'}</p></div>${plusBtn('Nuevo apartado')}</header>
-  ${ah.length?`<section class="sect"><h2>Tus apartados</h2>${ah.map(a=>`<div class="row nochk"><div class="rmain" style="grid-column:1 / 3"><button class="rname link" style="text-align:left" data-a="editCuenta" data-id="${a.id}">${esc(a.nombre)}</button><div class="rsub">${a.banco?esc(a.banco)+' · ':''}${a.tasa?`${a.tasa}% anual · rinde unos ${fmt0(a.saldo*a.tasa/1200)} al mes`:'Sin tasa capturada'}</div></div><div class="ramt">${fmt0(a.saldo)}</div></div>`).join('')}<div class="chips" style="margin-top:12px">${accs().length>1?`<button class="btn sm" data-a="transfer" data-to="${ah[0].id}">Meter dinero</button><button class="btn ghost sm" data-a="transfer" data-from="${ah[0].id}">Sacar dinero</button>`:''}</div></section>`:`<div class="empty"><b>Aún no tienes apartados</b>Toca + para agregar uno con su tasa. Para probar sin guardar nada, usa la calculadora de abajo.</div>`}
+  ${ah.length?`<section class="sect"><h2>Tus apartados</h2>${ah.map(a=>`<div class="row nochk"><div class="rmain" style="grid-column:1 / 3"><button class="rname link" style="text-align:left" data-a="editCuenta" data-id="${a.id}">${esc(a.nombre)}</button><div class="rsub">${a.banco?esc(a.banco)+' · ':''}${rendTxt(a)}</div></div><div class="ramt">${fmt0(a.saldo)}</div></div>`).join('')}<div class="chips" style="margin-top:12px">${accs().length>1?`<button class="btn sm" data-a="transfer" data-to="${ah[0].id}">Meter dinero</button><button class="btn ghost sm" data-a="transfer" data-from="${ah[0].id}">Sacar dinero</button>`:''}</div></section>`:`<div class="empty"><b>Aún no tienes apartados</b>Toca + para agregar uno con su tasa. Para probar sin guardar nada, usa la calculadora de abajo.</div>`}
   <section class="sect"><h2>Qué pasaría si…</h2>
     ${ah.length>1?`<div class="fld" style="margin-bottom:12px"><label for="sm_cuenta">Apartado</label><select id="sm_cuenta" data-sim="cuenta">${ah.map(a=>`<option value="${a.id}" ${sel&&sel.id===a.id?'selected':''}>${esc(a.nombre)}</option>`).join('')}</select></div>`:''}
     <div class="fgrid">${inp('saldo','Saldo inicial','')}${inp('aporte','Metes al mes','')}${inp('retiro','Sacas al mes (en promedio)','Lo que sueles sacar. Si no sacas, déjalo en 0.')}${inp('tasa','Tasa anual %','')}${inp('meses','Plazo en meses','')}</div>
@@ -2303,6 +2333,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&M)closeModal()});
 
 /* ===== arranque ===== */
 S=load();
+if(S)accrueAll();
 render();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 if(CFG&&AU&&!window.claude)cloudPull();
