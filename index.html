@@ -177,6 +177,7 @@ nav.rail button[aria-current="page"]{color:var(--accent);font-weight:600}
 .cardface small{display:block;opacity:.85;font-size:13px;position:relative;z-index:1}
 .cardface .prog{background:rgba(255,255,255,.28);margin-top:8px;position:relative;z-index:1}
 .cardface .prog i{background:#fff}
+.cardface .cn{display:flex;align-items:center;gap:9px;min-width:0}.mono{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.22);display:inline-grid;place-items:center;font:700 11px var(--f-body);letter-spacing:.02em;flex:none}
 .c-navy{--c1:#16201B} .c-rosa{--c1:#A5472B} .c-teal{--c1:#1F6F4A} .c-oro{--c1:#9A7410} .c-grafito{--c1:#4B5550}
 .cols{display:flex;align-items:flex-end;gap:5px;height:130px;margin-top:6px}
 .cols div{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:4px}
@@ -283,6 +284,31 @@ main h2 small{font:500 13.5px var(--f-body);color:var(--muted)}
 .thm button{border:2px solid var(--line);border-radius:16px;padding:10px;background:var(--surface2);text-align:left;font-weight:600}
 .thm button[aria-pressed=true]{border-color:var(--accent)}
 .thm i{display:block;height:34px;border-radius:9px;margin-bottom:8px;border:1px solid rgba(0,0,0,.08)}
+
+.invb{background:var(--accent-soft);border-radius:18px;padding:16px;margin-bottom:22px;display:flex;flex-direction:column;gap:4px}
+.invb .acts{margin-top:10px}
+.ob h1{font-size:clamp(30px,8vw,40px)}
+.ob h2{margin:22px 0 10px;font-size:16px}
+.obdots{display:flex;gap:6px;margin-bottom:22px}.obdots i{height:5px;flex:1;border-radius:3px;background:var(--line)}.obdots i.on{background:var(--accent)}
+.fldl{display:flex;flex-direction:column;gap:5px;font-size:14px;color:var(--muted);margin:12px 0}
+.fldl input{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface2);color:var(--ink);font-size:16px}
+.obth button{padding:8px}
+.mock{height:74px!important;position:relative;padding:8px;display:flex;flex-direction:column;gap:5px}
+.mock b{display:block;height:9px;border-radius:5px;background:rgba(128,128,128,.35);width:70%}.mock b+b{width:45%}
+.mock u{position:absolute;right:8px;bottom:8px;width:22px;height:10px;border-radius:6px;background:var(--accent)}
+.sw{width:38px;height:38px;border-radius:50%;border:3px solid transparent;box-shadow:0 0 0 1px var(--line)}.sw[aria-pressed=true]{border-color:var(--bg);box-shadow:0 0 0 2px var(--ink)}
+.obtiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.obtiles button{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:16px;border-radius:18px;border:2px solid var(--line);background:var(--surface2)}
+.obtiles button[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft)}
+.obtiles svg{width:28px;height:28px;fill:none;stroke:var(--accent);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;margin-bottom:6px}
+.obtiles span{font-size:13px;color:var(--muted)}
+.obgrp{border:1px solid var(--line);border-radius:18px;padding:4px 16px 12px;margin-top:14px}.obgrp h2{margin-top:14px}
+.obbanks{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.obbanks button{display:flex;align-items:center;gap:8px;background:var(--c1);color:#fff;border:0;border-radius:14px;padding:10px;font-weight:600;font-size:14px;text-align:left}
+.obcard{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.cardface.mini{min-height:0;padding:12px 16px;width:100%}
+.obfld{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.obfld .fldl:first-child{grid-column:1/3}.obfld .link{justify-self:start}
+.obfin{display:flex;flex-direction:column;gap:10px;margin-top:24px}
 </style>
 <div class="shell">
   <nav class="rail" id="nav" aria-label="Secciones"></nav>
@@ -522,6 +548,11 @@ function renderModal(){
 function commit(msg){persist();render();if(msg)toast(msg)}
 const catOpts=[['Needs','Necesidad'],['Wants','Gusto'],['Ahorro','Ahorro o inversión']];
 const GRUPOS=['Servicios del hogar','Renta / casa','Pago a una persona','Suscripciones','Comida','Transporte','Salud','Educación','Otro'];
+const BANCOS=[['banamex','Banamex','#B3122D','BX'],['bbva','BBVA','#0B4A8F','BB'],['santander','Santander','#C4161C','SA'],['banorte','Banorte','#C8102E','BN'],['hsbc','HSBC','#B50D1A','HS'],['scotia','Scotiabank','#C8161D','SC'],['inbursa','Inbursa','#0C3C80','IN'],['nu','Nu','#7B1FC4','NU'],['plata','Plata','#2A2A2A','PL'],['hey','Hey Banco','#1C1C1C','HY'],['mp','Mercado Pago','#0B7FB5','MP'],['amex','American Express','#2B6CB8','AX'],['liverpool','Liverpool','#C21A7B','LV'],['rappi','Rappi','#E0431B','RP'],['finsus','Finsus','#1F6F4A','FS']];
+const bancoOf=id=>BANCOS.find(b=>b[0]===id)||null;
+const cardHex=c=>c.color==='custom'&&/^#[0-9a-f]{6}$/i.test(c.hex||'')?c.hex:(c.color==='banco'&&bancoOf(c.banco)?bancoOf(c.banco)[2]:null);
+const cardStyle=c=>{const h=cardHex(c);return h?` style="--c1:${h}"`:''};
+const cardMono=c=>{const b=bancoOf(c.banco);if(b)return b[3];const w=String(c.nombre||'?').trim().split(/\s+/);return (w.length>1?w[0][0]+w[1][0]:w[0].slice(0,2)).toUpperCase()};
 const COLORES=[['navy','Tinta'],['rosa','Terracota'],['teal','Verde'],['oro','Dorado'],['grafito','Grafito']];
 
 function editItem(id,tipo,freq,pre){
@@ -558,23 +589,27 @@ function editItem(id,tipo,freq,pre){
 }
 function editCard(id){
   const c=id?S.cards.find(x=>x.id===id):null;
-  const v=c?{...c,statement:c.statement==null?'':c.statement,corte:c.corte||''}:{nombre:'',color:COLORES[S.cards.length%5][0],limite:'',balance:'',statement:'',corte:'',diasPago:20,tasa:'',gastoProm:''};
+  const v=c?{...c,banco:c.banco||'',hex:c.hex||'#4B5550',statement:c.statement==null?'':c.statement,corte:c.corte||''}:{nombre:'',banco:'',hex:'#4B5550',color:COLORES[S.cards.length%5][0],limite:'',balance:'',statement:'',corte:'',diasPago:20,tasa:'',gastoProm:''};
   openForm({title:c?'Editar tarjeta':'Nueva tarjeta',vals:v,del:!!c,
     note:'No pidas ni captures el número de la tarjeta. Aquí solo usamos montos y fechas.',
-    fields:()=>[
+    fields:v=>{
+      if(v.banco!==v._pb){const first=v._pb===undefined;v._pb=v.banco;if(!first){const b=bancoOf(v.banco);if(b){v.color='banco';if(!String(v.nombre||'').trim()||BANCOS.some(x=>x[1]===v.nombre))v.nombre=b[1]}else if(v.color==='banco')v.color='navy'}}
+      return [
+      {k:'banco',label:'Banco o emisor',type:'select',opts:[['','Otro'],...BANCOS.map(b=>[b[0],b[1]])],dep:1,full:1,hint:'Pone el color del banco para que la reconozcas rápido.'},
       {k:'nombre',label:'Nombre',ph:'Ej. NU, Liverpool, Amex'},
-      {k:'color',label:'Color',type:'select',opts:COLORES},
+      {k:'color',label:'Color',type:'select',opts:[...(v.banco?[['banco','Del banco']]:[]),...COLORES,['custom','Elegir otro']],dep:1},
+      ...(v.color==='custom'?[{k:'hex',label:'Tu color',type:'color'}]:[]),
       {k:'limite',label:'Límite de crédito',type:'number'},
       {k:'balance',label:'Saldo total (lo que debes)',type:'number'},
       {k:'statement',label:'Pago para no generar intereses',type:'number',hint:'Del último corte. Pon 0 si ya lo pagaste. Si no lo sabes, déjalo vacío y cuento todo tu saldo.'},
       {k:'corte',label:'Día de corte',type:'number',hint:'Del 1 al 31'},
       {k:'diasPago',label:'Días del corte al pago',type:'number',hint:'Casi siempre 20'},
       {k:'tasa',label:'Tasa anual (CAT %)',type:'number',hint:'Opcional. Sirve para ordenar abonos.'},
-      {k:'gastoProm',label:'Gasto nuevo al mes',type:'number',hint:'Opcional. Para estimar pagos futuros.'}],
+      {k:'gastoProm',label:'Gasto nuevo al mes',type:'number',hint:'Opcional. Para estimar pagos futuros.'}]},
     save:v=>{
       if(!String(v.nombre||'').trim())return 'Ponle un nombre a la tarjeta.';
       if(!(num(v.corte)>=1&&num(v.corte)<=31))return 'El día de corte debe estar entre 1 y 31.';
-      const o={nombre:v.nombre.trim(),color:v.color||'navy',limite:num(v.limite),balance:num(v.balance),statement:(v.statement===''||v.statement==null)?null:num(v.statement),corte:num(v.corte),diasPago:num(v.diasPago)||20,tasa:num(v.tasa),gastoProm:num(v.gastoProm)};
+      const o={nombre:v.nombre.trim(),banco:v.banco||'',color:(v.color==='banco'&&!v.banco)?'navy':(v.color||'navy'),hex:v.color==='custom'?v.hex:'',limite:num(v.limite),balance:num(v.balance),statement:(v.statement===''||v.statement==null)?null:num(v.statement),corte:num(v.corte),diasPago:num(v.diasPago)||20,tasa:num(v.tasa),gastoProm:num(v.gastoProm)};
       if(c)Object.assign(c,o);else S.cards.push({id:uid(),desde:todayISO(),msi:[],...o});
       commit('Guardado');},
     onDel:()=>{S.cards=S.cards.filter(x=>x.id!==id);Object.keys(S.paid).forEach(k=>{if(k.startsWith('k:'+id+':'))delete S.paid[k]});commit('Tarjeta eliminada')}});
@@ -964,17 +999,17 @@ let AU=null;
 try{if(CFG)AU=JSON.parse(localStorage.getItem(AUTHKEY)||'null')}catch(e){}
 const cloudOn=()=>!!(CFG&&AU);
 const saveAU=()=>{try{AU?localStorage.setItem(AUTHKEY,JSON.stringify(AU)):localStorage.removeItem(AUTHKEY)}catch(e){}};
-const AUTH_MSG={INVALID_LOGIN_CREDENTIALS:'Correo o contraseña incorrectos.',INVALID_PASSWORD:'Correo o contraseña incorrectos.',EMAIL_NOT_FOUND:'Correo o contraseña incorrectos.',INVALID_EMAIL:'Revisa el correo, parece incompleto.',USER_DISABLED:'Esta cuenta está desactivada.',TOO_MANY_ATTEMPTS_TRY_LATER:'Demasiados intentos. Espera unos minutos e intenta de nuevo.',MISSING_PASSWORD:'Escribe tu contraseña.'};
+const AUTH_MSG={EMAIL_EXISTS:'Ese correo ya tiene cuenta. Toca "Ya tengo cuenta" para entrar.',WEAK_PASSWORD:'La contraseña debe tener al menos 6 caracteres.',INVALID_LOGIN_CREDENTIALS:'Correo o contraseña incorrectos.',INVALID_PASSWORD:'Correo o contraseña incorrectos.',EMAIL_NOT_FOUND:'Correo o contraseña incorrectos.',INVALID_EMAIL:'Revisa el correo, parece incompleto.',USER_DISABLED:'Esta cuenta está desactivada.',TOO_MANY_ATTEMPTS_TRY_LATER:'Demasiados intentos. Espera unos minutos e intenta de nuevo.',MISSING_PASSWORD:'Escribe tu contraseña.'};
 async function jpost(url,body,form){
   const r=await fetch(url,{method:'POST',headers:{'Content-Type':form?'application/x-www-form-urlencoded':'application/json'},body:form?body:JSON.stringify(body)});
   let j=null;try{j=await r.json()}catch(e){}
   return{ok:r.ok,status:r.status,json:j||{}};
 }
-async function signIn(email,pw){
+async function signIn(email,pw,up){
   let r;
-  try{r=await jpost('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key='+CFG.apiKey,{email,password:pw,returnSecureToken:true})}
+  try{r=await jpost('https://identitytoolkit.googleapis.com/v1/accounts:'+(up?'signUp':'signInWithPassword')+'?key='+CFG.apiKey,{email,password:pw,returnSecureToken:true})}
   catch(e){return{err:'No hay conexión. Intenta de nuevo con internet.'}}
-  if(!r.ok){const full=String((r.json.error||{}).message||''),code=full.split(' ')[0];return{err:/API key/i.test(full)?'La clave de Firebase de esta app no es válida. Hay que revisar la configuración.':/OPERATION_NOT_ALLOWED/.test(full)?'El inicio de sesión con correo no está activado en Firebase.':AUTH_MSG[code]||'No se pudo iniciar sesión ('+(code||r.status)+').'}}
+  if(!r.ok){const full=String((r.json.error||{}).message||''),code=full.split(' ')[0];return{err:/API key/i.test(full)?'La clave de Firebase de esta app no es válida. Hay que revisar la configuración.':/OPERATION_NOT_ALLOWED/.test(full)?'El inicio de sesión con correo no está activado en Firebase.':AUTH_MSG[code]||(up?'No se pudo crear la cuenta (':'No se pudo iniciar sesión (')+(code||r.status)+').'}}
   AU={email:r.json.email||email,uid:r.json.localId,idToken:r.json.idToken,refreshToken:r.json.refreshToken,exp:Date.now()+(+r.json.expiresIn||3600)*1000};
   saveAU();return{ok:1};
 }
@@ -1205,8 +1240,40 @@ function loginForm(){
       closeModal();
       await cloudPull();
       toast('Sesión iniciada');
+      if(S)afterAuth();else if(typeof startGuide==='function')startGuide();
     }});
 }
+/* ===== crear cuenta e invitaciones ===== */
+const INVK='cuentas-al-dia-invite';
+let INV='';try{const q=new URLSearchParams(location.search).get('g');if(q&&cleanCode(q).length>=8){INV=cleanCode(q);localStorage.setItem(INVK,INV);history.replaceState(null,'',location.pathname)}else INV=localStorage.getItem(INVK)||''}catch(e){}
+function clearInvite(){INV='';try{localStorage.removeItem(INVK)}catch(e){}}
+function inviteUrl(gid){return location.origin+location.pathname+'?g='+gid}
+async function shareInvite(g){
+  const url=inviteUrl(g.cloud.id),text='Únete a «'+g.nombre+'» en Cuentas al Día para dividir gastos. Entra con esta liga y crea tu cuenta:';
+  try{if(navigator.share){await navigator.share({title:'Cuentas al Día',text,url});return}}catch(e){if(e&&e.name==='AbortError')return}
+  try{await navigator.clipboard.writeText(text+'\n'+url);toast('Liga copiada, pégala en WhatsApp')}catch(e){toast('Liga: '+url)}
+}
+function signupForm(){
+  openForm({title:'Crear mi cuenta',vals:{email:'',pw:''},saveLabel:'Crear cuenta',
+    note:'Con tu cuenta tus datos se guardan en la nube, los ves en tu cel y en tu compu, y puedes compartir gastos. Usa una contraseña que no uses en otro lado.',
+    fields:()=>[{k:'email',label:'Correo',type:'email'},{k:'pw',label:'Contraseña (mínimo 6 caracteres)',type:'password'}],
+    save:async v=>{
+      const email=String(v.email||'').trim(),pw=String(v.pw||'');
+      if(!email||!pw)return 'Escribe tu correo y una contraseña.';
+      if(pw.length<6)return 'La contraseña debe tener al menos 6 caracteres.';
+      const r=await signIn(email,pw,true);
+      if(r.err)return r.err;
+      closeModal();await cloudPull();
+      if(!S){if(typeof startGuide==='function')startGuide();return}
+      afterAuth();
+    }});
+}
+async function runInvite(){
+  if(!INV||!cloudOn()||!S)return;
+  const code=INV;clearInvite();joinForm(code);
+  if(M&&M.save){const e=await M.save(M.vals);if(e){M.err=e;renderModal()}}
+}
+function afterAuth(){if(INV)runInvite()}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cloudOn())syncAll()});
 setInterval(()=>{if(!document.hidden&&cloudOn())syncAll()},60000);
 
@@ -1661,6 +1728,63 @@ function aplicarMeta(){
   if(m.fechaLimite&&m.fechaCorte)c.diasPago=Math.max(1,dnum(m.fechaLimite)-dnum(m.fechaCorte));
   persist();toast('Tarjeta actualizada con los datos del estado');render();
 }
+/* ===== arranque guiado ===== */
+let OB=null;
+const OBI={
+  deb:'<svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18"/></svg>',
+  efe:'<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>',
+  aho:'<svg viewBox="0 0 24 24"><ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/></svg>',
+  tar:'<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M6 15h4"/></svg>'
+};
+function startGuide(){
+  OB={step:0,nombre:'',have:{deb:true,tar:true,efe:false,aho:false},deb:{nombre:'',saldo:''},efe:{saldo:''},aho:{nombre:'Ahorro',saldo:'',liq:true},tars:[]};
+  render();window.scrollTo(0,0);
+}
+const obSteps=()=>['look','have',...(OB.have.deb||OB.have.efe||OB.have.aho?['cuentas']:[]),...(OB.have.tar?['tarjetas']:[]),'fin'];
+function obSet(path,val){const k=path.split('.');let o=OB;for(let i=0;i<k.length-1;i++)o=o[k[i]];o[k[k.length-1]]=val}
+function obView(){
+  const st=obSteps(),cur=st[OB.step]||'fin',n=st.length;
+  const dots=`<div class="obdots" aria-label="Paso ${OB.step+1} de ${n}">${st.map((_,i)=>`<i ${i<=OB.step?'class="on"':''}></i>`).join('')}</div>`;
+  let body='';
+  if(cur==='look'){
+    body=`<h1>Hazla tuya</h1><p class="muted">Elige cómo quieres verla. Lo puedes cambiar cuando quieras.</p>
+    <label class="fldl">¿Cómo te llamas?<input data-ob="nombre" value="${esc(OB.nombre)}" placeholder="Tu nombre" autocomplete="given-name"></label>
+    <h2>Estilo</h2><div class="thm obth">${THEMES.map(([k,l,bg])=>`<button type="button" data-a="setTheme" data-v="${k}" aria-pressed="${(ui.theme||'auto')===k}"><i class="mock" style="background:${bg}"><b></b><b></b><u></u></i>${l}</button>`).join('')}</div>
+    ${SOLID(ui.theme||'auto')||!ui.theme?`<h2>Color de acento</h2><div class="swatches">${Object.entries(ACCS).map(([k,a])=>`<button type="button" class="sw" data-a="setAcc" data-v="${k}" aria-label="${a[0]}" aria-pressed="${(ui.acc||'verde')===k}" style="background:${a[1]}"></button>`).join('')}</div>`:''}`;
+  }else if(cur==='have'){
+    const T=[['deb','Cuenta de débito','Donde cae tu dinero'],['tar','Tarjeta de crédito','Para ver cuánto debes'],['efe','Efectivo','Lo que traes en la cartera'],['aho','Ahorro o inversión','Apartados, cajitas, CETES']];
+    body=`<h1>¿Qué tienes?</h1><p class="muted">Toca lo que uses. Puedes agregar más después.</p><div class="obtiles">${T.map(([k,l,s])=>`<button type="button" data-a="obHave" data-v="${k}" aria-pressed="${!!OB.have[k]}">${OBI[k]}<b>${l}</b><span>${s}</span></button>`).join('')}</div>`;
+  }else if(cur==='cuentas'){
+    body=`<h1>¿Cuánto hay hoy?</h1><p class="muted">Un número aproximado basta; lo corriges cuando quieras.</p>
+    ${OB.have.deb?`<div class="obgrp"><h2>Débito</h2><label class="fldl">Nombre<input data-ob="deb.nombre" value="${esc(OB.deb.nombre)}" placeholder="Ej. Banamex débito"></label><label class="fldl">Saldo actual<input data-ob="deb.saldo" type="number" inputmode="decimal" value="${esc(OB.deb.saldo)}" placeholder="0"></label></div>`:''}
+    ${OB.have.efe?`<div class="obgrp"><h2>Efectivo</h2><label class="fldl">¿Cuánto traes?<input data-ob="efe.saldo" type="number" inputmode="decimal" value="${esc(OB.efe.saldo)}" placeholder="0"></label></div>`:''}
+    ${OB.have.aho?`<div class="obgrp"><h2>Ahorro</h2><label class="fldl">Nombre<input data-ob="aho.nombre" value="${esc(OB.aho.nombre)}"></label><label class="fldl">Saldo<input data-ob="aho.saldo" type="number" inputmode="decimal" value="${esc(OB.aho.saldo)}" placeholder="0"></label><label class="chk-l"><input type="checkbox" data-obc="aho.liq" ${OB.aho.liq?'checked':''}> Lo puedo sacar cuando quiera</label></div>`:''}`;
+  }else if(cur==='tarjetas'){
+    body=`<h1>Tus tarjetas</h1><p class="muted">Toca el banco para agregarla. Nunca pedimos el número de la tarjeta.</p>
+    ${OB.tars.map((c,i)=>{const b=bancoOf(c.banco),hex=b?b[2]:'#4B5550';return `<div class="obcard"><div class="cardface mini" style="--c1:${hex}"><div class="nm"><span class="cn"><span class="mono">${esc(cardMono(c))}</span>${esc(c.nombre||'Tarjeta')}</span></div></div><div class="obfld"><label class="fldl">Nombre<input data-ob="tars.${i}.nombre" value="${esc(c.nombre)}"></label><label class="fldl">Límite<input data-ob="tars.${i}.limite" type="number" inputmode="decimal" value="${esc(c.limite)}" placeholder="0"></label><label class="fldl">Lo que debes<input data-ob="tars.${i}.balance" type="number" inputmode="decimal" value="${esc(c.balance)}" placeholder="0"></label><button type="button" class="link" data-a="obQuitar" data-i="${i}">Quitar</button></div></div>`}).join('')}
+    <h2>${OB.tars.length?'Agregar otra':'¿De qué banco?'}</h2><div class="obbanks">${BANCOS.map(b=>`<button type="button" data-a="obBanco" data-v="${b[0]}" style="--c1:${b[2]}"><span class="mono">${b[3]}</span>${b[1]}</button>`).join('')}<button type="button" data-a="obBanco" data-v="" style="--c1:#4B5550"><span class="mono">+</span>Otro</button></div>`;
+  }else{
+    const nube=CFG&&!AU;
+    body=`<h1>Todo listo${OB.nombre.trim()?', '+esc(OB.nombre.trim().split(/\s+/)[0]):''}</h1><p class="muted">Ahora agrega tus pagos con el botón +. Si quieres, también:</p>
+    <div class="obfin">${nube?'<button class="btn ghost" data-a="obDone" data-w="signup">Crear cuenta para guardar en la nube</button>':''}${CFG&&AU?'<button class="btn ghost" data-a="obDone" data-w="join">Unirme a un grupo con código</button>':''}<button class="btn" data-a="obDone" data-w="">Entrar a mi app</button></div>
+    ${nube?'<p class="small muted">Con cuenta ves lo mismo en tu cel y en tu compu, y puedes dividir gastos con otras personas.</p>':''}`;
+  }
+  const last=cur==='fin';
+  return `<div class="welcome ob">${dots}${body}${last?'':`<div class="acts"><button class="btn" data-a="obNext">${cur==='tarjetas'&&!OB.tars.length?'Omitir':'Siguiente'}</button>${OB.step>0?'<button class="btn ghost" data-a="obBack">Atrás</button>':'<button class="btn ghost" data-a="obCancel">Volver</button>'}</div>`}${last&&OB.step>0?'<p><button class="link" data-a="obBack">‹ Atrás</button></p>':''}</div>`;
+}
+function obDone(w){
+  const o=blank(),num2=x=>r2(num(x));
+  o.nombre=OB.nombre.trim();
+  const cu=[];
+  if(OB.have.deb)cu.push({id:uid(),nombre:OB.deb.nombre.trim()||'Débito',banco:'',tipo:'debito',saldo:num2(OB.deb.saldo),tasa:0,color:'teal'});
+  if(OB.have.efe)cu.push({id:uid(),nombre:'Efectivo',banco:'',tipo:'efectivo',saldo:num2(OB.efe.saldo),tasa:0,color:'oro'});
+  if(OB.have.aho)cu.push({id:uid(),nombre:OB.aho.nombre.trim()||'Ahorro',banco:'',tipo:'ahorro',saldo:num2(OB.aho.saldo),tasa:0,liq:!!OB.aho.liq,color:'navy'});
+  o.cuentas=cu;
+  o.cards=OB.tars.map(c=>({id:uid(),desde:todayISO(),msi:[],nombre:c.nombre.trim()||(bancoOf(c.banco)||[0,'Tarjeta'])[1],banco:c.banco||'',color:c.banco?'banco':'navy',hex:'',limite:num2(c.limite),balance:num2(c.balance),statement:null,corte:null,diasPago:20,tasa:0,gastoProm:0}));
+  S=migrate(o);OB=null;ui.tab='hoy';saveUI();persist();render();window.scrollTo(0,0);
+  if(w==='signup')signupForm();else if(w==='join')joinForm();else if(INV&&cloudOn())runInvite();
+  else toast('Listo. Agrega tus pagos con el botón +.');
+}
 
 /* ===== vistas: hoy, pagos, tarjetas, más, resumen ===== */
 const ICON={
@@ -1720,7 +1844,7 @@ function vTarjetasCredito(){
     const u=c.limite>0?c.balance/c.limite*100:0,nx=all.find(i=>i.kind==='card'&&i.ref.id===c.id&&!i.rec);
     const p=parse(t),cutThis=clampDay(p.y,p.m,+c.corte);
     const ncut=cutThis>=t?cutThis:(()=>{const n=shiftMonth(monthKey(t),1).split('-').map(Number);return clampDay(n[0],n[1]-1,+c.corte)})();
-    return `<article><button class="cardface c-${c.color||'navy'}" data-a="editCard" data-id="${c.id}" aria-label="Editar ${esc(c.nombre)}"><div class="nm"><span>${esc(c.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>Debes</small><div class="bal">${fmt0(c.balance)}</div><div class="prog"><i style="width:${Math.min(100,u).toFixed(0)}%"></i></div><small style="margin-top:6px">${c.limite>0?`${u.toFixed(0)}% de ${fmt0(c.limite)}`:'Sin límite capturado'}</small></div></button>
+    return `<article><button class="cardface c-${COLORES.some(x=>x[0]===c.color)?c.color:'navy'}"${cardStyle(c)} data-a="editCard" data-id="${c.id}" aria-label="Editar ${esc(c.nombre)}"><div class="nm"><span class="cn"><span class="mono" aria-hidden="true">${esc(cardMono(c))}</span>${esc(c.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>Debes</small><div class="bal">${fmt0(c.balance)}</div><div class="prog"><i style="width:${Math.min(100,u).toFixed(0)}%"></i></div><small style="margin-top:6px">${c.limite>0?`${u.toFixed(0)}% de ${fmt0(c.limite)}`:'Sin límite capturado'}</small></div></button>
       <div style="padding:8px 2px 0"><div class="kv"><span>Corte</span>${+c.corte>=1?`<span>${dshort(ncut)} · ${rel(ncut)}</span>`:`<button class="link" data-a="editCard" data-id="${c.id}">Falta capturarlo</button>`}</div>
       <div class="kv"><span>Siguiente pago</span><span>${nx?(+c.corte>=1?`${dshort(nx.date)} · ${fmt0(nx.amount)}${nx.est?' aprox.':''}`:`Se cuenta tu saldo: ${fmt0(nx.amount)}`):'—'}</span></div>
       ${(c.msi||[]).map(q=>{const hechos=q.meses-q.remaining,end=shiftMonth(monthKey(t),Math.max(0,q.remaining-1)).split('-').map(Number);return `<div class="msi"><div><b>${esc(q.concepto)}</b><span class="muted small">${fmt0(msiMensual(q))} al mes · ${q.remaining>0?`faltan ${q.remaining}`:'liquidado'}</span></div><button class="link" data-a="editMsi" data-id="${c.id}" data-p="${q.id}">Editar</button><div class="prog ${q.remaining===0?'good':''}"><i style="width:${(hechos/q.meses*100).toFixed(0)}%"></i></div></div>`}).join('')}
@@ -1825,7 +1949,7 @@ function vGrupos(){
 }
 function vGrupo(g){
   const ms=g.miembros,ver=ui.verMiembro;
-  const head=`<div><button class="back" data-a="grupoBack">‹ Grupos</button><header class="top"><div><h1>${esc(g.nombre)}</h1><p>${ms.map(m=>esc(m.nombre)).join(', ')} y tú · <button class="link" data-a="editGrupo" data-id="${g.id}">Editar</button></p></div>${plusBtn('Gasto compartido')}</header>${cloudOn()?(g.cloud?`<p class="small muted" style="margin:0 0 4px">Compartido · código <b class="nums">${showCode(g.cloud.id)}</b> <button class="link" data-a="copyCode" data-c="${g.cloud.id}">Copiar</button> · <button class="link" data-a="syncGrupo" data-id="${g.id}">Actualizar</button>${g.cloud.lost?' · <span style="color:var(--bad)">el grupo ya no existe en la nube</span>':''}</p>`:`<p class="small muted" style="margin:0 0 4px"><button class="link" data-a="shareGrupo" data-id="${g.id}">Compartir con otra persona</button></p>`):''}</div>`;
+  const head=`<div><button class="back" data-a="grupoBack">‹ Grupos</button><header class="top"><div><h1>${esc(g.nombre)}</h1><p>${ms.map(m=>esc(m.nombre)).join(', ')} y tú · <button class="link" data-a="editGrupo" data-id="${g.id}">Editar</button></p></div>${plusBtn('Gasto compartido')}</header>${cloudOn()?(g.cloud?`<p class="small muted" style="margin:0 0 4px">Compartido · código <b class="nums">${showCode(g.cloud.id)}</b> <button class="link" data-a="copyCode" data-c="${g.cloud.id}">Copiar</button> · <button class="link" data-a="invitar" data-id="${g.id}">Invitar</button> · <button class="link" data-a="syncGrupo" data-id="${g.id}">Actualizar</button>${g.cloud.lost?' · <span style="color:var(--bad)">el grupo ya no existe en la nube</span>':''}</p>`:`<p class="small muted" style="margin:0 0 4px"><button class="link" data-a="shareGrupo" data-id="${g.id}">Compartir con otra persona</button></p>`):''}</div>`;
   const cuentas=ms.map(m=>{
     const b=balanceWith(g,m.id),ev=eventsWith(g,m.id),open=ver===m.id;
     return `<div class="balrow"><div><span class="who">${esc(m.nombre)}</span> <span class="small muted">${ev.length===1?'1 movimiento':ev.length+' movimientos'}</span></div><span class="st ${b>0.005?'pos':b<-0.005?'neg':''}">${Math.abs(b)<0.005?'A mano':(b>0?'Te debe ':'Le debes ')+fmt(Math.abs(b))}</span>
@@ -1994,7 +2118,8 @@ function vAlertas(){
 
 /* ===== bienvenida y ejemplo ===== */
 function welcome(){
-  return `<div class="welcome"><h1>Cuentas al Día</h1><p>Tu dinero en una sola vista: qué te queda libre, qué pagas esta semana y qué tarjeta se vence primero. Lo que compartes con otras personas vive aparte, en grupos.</p><ul><li>Pagos, rentas, servicios y tarjetas con compras a meses</li><li>Estados de cuenta para completar lo que se te olvidó y encontrar tus domiciliaciones</li><li>Grupos para el depa y las salidas, con quién le debe a quién</li></ul><div class="acts"><button class="btn" data-a="startBlank">Empezar en blanco</button><button class="btn ghost" data-a="startDemo">Ver un ejemplo</button>${CFG&&!AU?'<button class="btn ghost" data-a="login">Ya tengo cuenta: iniciar sesión</button>':''}<label class="btn ghost" style="cursor:pointer">Importar respaldo<input id="impf" type="file" accept=".json,application/json" hidden></label></div></div>`;
+  const inv=INV&&CFG&&!AU?`<div class="invb"><b>Te invitaron a un grupo</b><span>Crea tu cuenta (1 minuto) y entras directo.</span><div class="acts"><button class="btn" data-a="signup">Crear cuenta y unirme</button><button class="btn ghost" data-a="login">Ya tengo cuenta</button></div></div>`:'';
+  return `<div class="welcome">${inv}<h1>Cuentas al Día</h1><p>Tu dinero en una sola vista: qué te queda libre, qué pagas esta semana y qué tarjeta se vence primero. Lo que compartes con otras personas vive aparte, en grupos.</p><ul><li>Pagos, rentas, servicios y tarjetas con compras a meses</li><li>Estados de cuenta para completar lo que se te olvidó y encontrar tus domiciliaciones</li><li>Grupos para el depa y las salidas, con quién le debe a quién</li></ul><div class="acts"><button class="btn" data-a="startGuide">Empezar paso a paso</button><button class="btn" data-a="startBlank">Empezar en blanco</button><button class="btn ghost" data-a="startDemo">Ver un ejemplo</button>${CFG&&!AU?'<button class="btn ghost" data-a="signup">Crear mi cuenta</button><button class="btn ghost" data-a="login">Ya tengo cuenta: iniciar sesión</button>':''}<label class="btn ghost" style="cursor:pointer">Importar respaldo<input id="impf" type="file" accept=".json,application/json" hidden></label></div></div>`;
 }
 function demoData(){
   const t=todayISO(),dd=n=>addDays(t,n),dy=n=>parse(dd(n)).d,s=blank();
@@ -2047,7 +2172,7 @@ const TABS=[['hoy','Hoy'],['pagos','Pagos'],['tarjetas','Tarjetas'],['resumen','
 const SUB=['mas','mov','ajustes','ahorro','alertas'];
 function render(){
   IM={};
-  if(!S){$('#nav').innerHTML='';$('#main').innerHTML=welcome();return}
+  if(!S){$('#nav').innerHTML='';$('#main').innerHTML=OB?obView():welcome();return}
   const cur=SUB.includes(ui.tab)?'':ui.tab;
   $('#nav').innerHTML=`<div class="bar">${TABS.map(([k,l])=>`<button data-a="tab" data-v="${k}" ${cur===k?'aria-current="page"':''}>${NAVI[k]}${l}</button>`).join('')}</div>`;
   const V={hoy:vHoy,pagos:vPagos,tarjetas:vTarjetas,mas:vMas,resumen:vResumen,mov:vMov,grupos:vGrupos,ajustes:vAjustes,ahorro:vAhorro,alertas:vAlertas};
@@ -2104,6 +2229,7 @@ const A={
   startBlank:()=>{S=migrate(blank());ui.tab='ajustes';saveUI();persist();render();window.scrollTo(0,0);toast('Empieza con tu nombre y tus cuentas; luego agrega tarjetas y pagos.')},
   exAsk:()=>{ui.exAsk=true;render()},exNo:()=>{ui.exAsk=false;render()},
   startExcel:()=>{ui.exAsk=false;S=migrate(excelData());ui.tab='hoy';saveUI();persist();render();window.scrollTo(0,0);toast('Cargué tus datos del Excel. Revisa los saldos de tus tarjetas.')},
+  obNext:()=>{OB.step=Math.min(OB.step+1,obSteps().length-1);render();window.scrollTo(0,0)},obBack:()=>{OB.step=Math.max(0,OB.step-1);render();window.scrollTo(0,0)},obCancel:()=>{OB=null;render()},obHave:el=>{OB.have[el.dataset.v]=!OB.have[el.dataset.v];render()},obBanco:el=>{const b=bancoOf(el.dataset.v);OB.tars.push({banco:el.dataset.v,nombre:b?b[1]:'',limite:'',balance:''});render()},obQuitar:el=>{OB.tars.splice(+el.dataset.i,1);render()},obDone:el=>obDone(el.dataset.w||''),
   startDemo:()=>{S=migrate(demoData());ui.tab='hoy';persist();render()},
   wipe:()=>{ui.wipe=true;render()},wipeNo:()=>{ui.wipe=false;render()},
   wipeOk:()=>{ui.wipe=false;ST=null;S=null;try{localStorage.removeItem(KEY)}catch(e){}if(dbDoc){dbDoc.set({json:'',updated:Date.now()}).catch(()=>{})}render()},
@@ -2115,11 +2241,11 @@ const A={
   syncNow:async()=>{if(!cloudOn())return;toast('Sincronizando…');try{if(S){S.updated=Date.now();await dbDoc.set({json:JSON.stringify(S),updated:S.updated});dbState='cloud'}await syncAll()}catch(e){dbState=navigator.onLine===false?'offline':'error'}if(!M)render();toast(dbState==='cloud'?'Todo sincronizado':'No se pudo sincronizar')},
   shareGrupo:async el=>{const g=S.grupos.find(x=>x.id===el.dataset.id);if(!g||!cloudOn())return;toast('Creando el código…');try{await shareGrupo(g);render();toast('Listo. Pásale el código a la otra persona.')}catch(e){toast('No se pudo compartir. Revisa tu conexión.')}},
   copyCode:async el=>{try{await navigator.clipboard.writeText(el.dataset.c);toast('Código copiado')}catch(e){toast('Código: '+showCode(el.dataset.c))}},
-  joinGrupo:()=>joinForm(),
+  joinGrupo:()=>joinForm(),invitar:el=>{const g=S.grupos.find(x=>x.id===el.dataset.id);if(g&&g.cloud)shareInvite(g)},signup:()=>signupForm(),startGuide:()=>startGuide(),
   syncGrupo:async el=>{const g=S.grupos.find(x=>x.id===el.dataset.id);if(!g||!cloudOn())return;toast('Sincronizando…');try{await syncGroup(g);persist(true);render();toast('Grupo al día')}catch(e){toast('No se pudo sincronizar')}}
 };
-function joinForm(){
-  openForm({title:'Unirme a un grupo',vals:{code:''},saveLabel:'Continuar',
+function joinForm(pre){
+  openForm({title:'Unirme a un grupo',vals:{code:pre||''},saveLabel:'Continuar',
     note:'Pide el código a la persona que creó el grupo.',
     fields:()=>[{k:'code',label:'Código del grupo',ph:'ABCDE-FGHJK'}],
     save:async v=>{
@@ -2141,6 +2267,7 @@ function doImport(tx){try{const s=JSON.parse(tx);if(!s||typeof s!=='object'||!Ar
 document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el||el.tagName==='LABEL'||el.disabled)return;e.preventDefault();const f=A[el.dataset.a];if(f)f(el)});
 document.addEventListener('input',e=>{
   const el=e.target;
+  if(el.dataset.ob&&OB){obSet(el.dataset.ob,el.value);return}
   if(el.dataset.f&&M){M.vals[el.dataset.f]=el.type==='checkbox'?el.checked:el.value;return}
   if(el.dataset.r&&ST&&el.dataset.rf==='desc'){const r=ST.rows.find(x=>x.id===el.dataset.r);if(r)r.desc=el.value;return}
   if(el.dataset.st&&ST&&(el.type==='text'||el.type==='password'||el.tagName==='TEXTAREA')){ST[el.dataset.st]=el.value;return}
@@ -2150,6 +2277,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
   const el=e.target;
   if(el.dataset.sim&&S){S.sim=S.sim||{};S.sim[el.dataset.sim]=el.value;if(el.dataset.sim==='cuenta'){const a=acc(el.value);if(a){S.sim.saldo=a.saldo;S.sim.tasa=a.tasa||0}}persist();render();return}
+  if(el.dataset.obc&&OB){obSet(el.dataset.obc,el.checked);return}
   if(el.dataset.cv&&S){S.contarVencidos=el.checked;persist();render();return}
   if(el.dataset.al&&S){S.alertas=mergeAlertas(S.alertas);S.alertas[el.dataset.al]=num(el.value);persist();render();return}
   if(el.dataset.alc&&S){S.alertas=mergeAlertas(S.alertas);S.alertas.act[el.dataset.alc]=el.checked;persist();render();return}
