@@ -392,11 +392,19 @@ function cardInst(c,from,to){
   const dates=[];
   if(!(+c.corte>=1)){if((+c.balance||0)>0){const d=addDays(t,+c.diasPago||20);if(d>=from&&d<=to)dates.push(d)}}
   else for(const [y,m] of monthsBetween(addDays(base,-60),to)){const pay=addDays(clampDay(y,m,+c.corte),+c.diasPago||20);if(pay>=base&&pay<=to)dates.push(pay)}
-  dates.sort();let k=0,first=true;const out=[];
+  dates.sort();let k=0,first=true,carryUsed=false;const out=[];
+  const dp=+c.diasPago||20,msiNow=(c.msi||[]).filter(p=>p.remaining>0).reduce((x,p)=>x+msiMensual(p),0),msiPend=(c.msi||[]).filter(p=>p.remaining>0).reduce((x,p)=>x+msiMensual(p)*p.remaining,0);
+  const carry=Math.max(0,(+c.balance||0)-Math.max(0,+c.statement||0)-msiPend);
   for(const d of dates){
     const key=`k:${c.id}:${d}`,rec=S.paid[key];let amount,est=false;
     if(rec)amount=rec.monto;
-    else{if(first&&(+c.statement>0))amount=+c.statement;else if(first&&c.statement==null&&(+c.balance||0)>0){amount=Math.max(+c.balance,cardEst(c,k));est=true}else{amount=cardEst(c,k);est=true}first=false;k++}
+    else{
+      const closed=addDays(d,-dp)<=t;
+      if(c.statement===0&&closed&&first){first=false;continue}
+      if(first&&(+c.statement>0))amount=+c.statement;
+      else if(first&&c.statement==null&&(+c.balance||0)>0){amount=Math.max(+c.balance,cardEst(c,k));est=true;carryUsed=true}
+      else{amount=cardEst(c,k);if(!carryUsed&&carry>0){amount=Math.max(amount,carry+msiNow);carryUsed=true}est=true}
+      first=false;k++}
     if(d>=from)out.push({key,kind:'card',ref:c,date:d,name:'Tarjeta '+c.nombre,sub:'',amount,est,tipo:'egreso',cat:'Deuda',grupo:'Tarjetas',rec});
   }
   return out;
@@ -449,6 +457,7 @@ function project(days,pend){
   if(!pend)pend=instances(addDays(t,-90),addDays(t,days)).filter(i=>!isDone(i));
   const byDay={};
   for(const i of pend){
+    if(i.date<t&&!S.contarVencidos)continue;
     const d=i.date<t?t:i.date;if(d>addDays(t,days))continue;
     const viaCard=i.kind==='item'&&isCardMedio(i.ref.medio);
     const sgn=i.tipo==='egreso'?-1:1;
@@ -471,8 +480,9 @@ function metrics(){
   const nextInc=pend.find(i=>i.tipo==='ingreso'&&i.date>t);
   const horizon=nextInc?nextInc.date:addDays(t,14);
   const direct=i=>!(i.kind==='item'&&isCardMedio(i.ref.medio));
-  const comp=out.filter(i=>i.date<=horizon&&direct(i)).reduce((s,i)=>s+i.amount,0)+(+S.gastoDiario||0)*Math.max(0,dnum(horizon)-dnum(t));
-  const sumTo=d=>out.filter(i=>i.date<=d).reduce((s,i)=>s+i.amount,0);
+  const flow=S.contarVencidos?out:out.filter(i=>i.date>=t);
+  const comp=flow.filter(i=>i.date<=horizon&&direct(i)).reduce((s,i)=>s+i.amount,0)+(+S.gastoDiario||0)*Math.max(0,dnum(horizon)-dnum(t));
+  const sumTo=d=>flow.filter(i=>i.date<=d).reduce((s,i)=>s+i.amount,0);
   const deuda=S.cards.reduce((s,c)=>s+(+c.balance||0),0),limite=S.cards.reduce((s,c)=>s+(+c.limite||0),0);
   const itemsEg=S.items.filter(i=>i.tipo==='egreso'),itemsIn=S.items.filter(i=>i.tipo==='ingreso');
   const ingM=S.ingresoProy>0?+S.ingresoProy:itemsIn.reduce((s,i)=>s+perMonth(i),0);
@@ -589,8 +599,8 @@ function editMsi(cid,pid){
       commit('Guardado');},
     onDel:()=>{c.msi=c.msi.filter(x=>x.id!==pid);commit('Eliminado')}});
 }
-function editMov(){
-  const v={tipo:'egreso',monto:'',desc:'',cat:'Needs',rubro:'',fecha:todayISO(),metodo:normMedio('cuenta'),destino:accIdOf('')||'',paypal:false,meses:1};
+function editMov(pre){
+  const v={tipo:'egreso',monto:'',desc:'',cat:'Needs',rubro:'',fecha:todayISO(),metodo:ultMedio(),destino:accIdOf('')||'',paypal:false,meses:1,...(pre||{})};
   openForm({title:'Registrar movimiento',vals:v,saveLabel:'Registrar',
     note:'Si lo pagaste con tarjeta se suma a su saldo. Si fue a meses, se crea el plan solo.',
     fields:v=>[
@@ -604,6 +614,7 @@ function editMov(){
       if(!(num(v.monto)>0))return 'El monto debe ser mayor a 0.';
       if(!String(v.desc||'').trim())return 'Escribe una descripción.';
       const ing=v.tipo==='ingreso',card=!ing&&isCardMedio(v.metodo);
+      if(!ing&&v.metodo)S.ultMedio=v.metodo;
       const m={id:uid(),fecha:v.fecha||todayISO(),tipo:v.tipo,monto:num(v.monto),desc:v.desc.trim(),cat:ing?'Ingreso':v.cat,metodo:card?v.metodo:'cuenta',manual:true};
       if(!ing&&v.rubro)m.rubro=v.rubro;
       if(ing)m.cuenta=moveCash(m.monto,v.destino);
@@ -682,7 +693,7 @@ function snShare(){
 }
 function addMenu(){
   const it=(a,t,s)=>`<button data-a="${a}"><span><span class="t">${t}</span><br><span class="s">${s}</span></span>${ICON.chev}</button>`;
-  $('#modal').innerHTML=`<div class="scrim" data-a="closeModal"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="Agregar"><div class="sheet-h"><h2>Agregar</h2><button class="btn ghost sm" type="button" data-a="closeModal">Cerrar</button></div><div class="menu">${it('menuPago','Un pago','Renta, servicios, suscripciones, a una persona')}${it('menuIngreso','Un ingreso','Sueldo, clases, lo que te llega')}${it('menuGasto','Un gasto de hoy','Algo que se te olvidó anotar')}</div></div>`;
+  $('#modal').innerHTML=`<div class="scrim" data-a="closeModal"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="Agregar"><div class="sheet-h"><h2>Agregar</h2><button class="btn ghost sm" type="button" data-a="closeModal">Cerrar</button></div><div class="menu">${it('menuPago','Un pago','Renta, servicios, suscripciones, a una persona')}${it('menuIngreso','Un ingreso','Sueldo, clases, lo que te llega')}${it('menuGasto','Un gasto de hoy','Algo que se te olvidó anotar')}${it('menuCompartido','Un gasto compartido','Lo pagaste tú y se divide con alguien')}${it('menuEfectivo','Efectivo','Agregar, sacar del banco o gastar en efectivo')}</div></div>`;
 }
 function chart(pts,h){
   h=h||190;const W=640,pl=46,pr=10,pt=12,pb=22;
@@ -755,6 +766,33 @@ function editTransfer(pre){
       commit('Listo, ya se movió el saldo');}});
 }
 
+function efectivoAcc(){return accs().find(a=>a.tipo==='efectivo')||null}
+function efectivoMenu(){
+  const it=(a,t,s)=>`<button data-a="${a}"><span><span class="t">${t}</span><br><span class="s">${s}</span></span>${ICON.chev}</button>`;
+  $('#modal').innerHTML=`<div class="scrim" data-a="closeModal"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="Efectivo"><div class="sheet-h"><h2>Efectivo</h2><button class="btn ghost sm" type="button" data-a="closeModal">Cerrar</button></div><div class="menu">${it('efAgregar','Me llegó efectivo','Suma a tu efectivo, como ingreso')}${it('efSacar','Saqué del cajero','Pasa de tu débito a efectivo, sin contar como gasto')}${it('efGasto','Gasté en efectivo','Se resta de tu efectivo')}</div></div>`;
+}
+function ensureEfectivo(){let a=efectivoAcc();if(!a){a={id:uid(),nombre:'Efectivo',banco:'',tipo:'efectivo',saldo:0,tasa:0,color:'amber'};accs().push(a);recalcCash()}return a}
+function editEfectivoIn(){
+  const a=ensureEfectivo();
+  openForm({title:'Me llegó efectivo',vals:{monto:'',desc:'Efectivo'},saveLabel:'Agregar',
+    fields:()=>[{k:'monto',label:'Monto',type:'number'},{k:'desc',label:'De qué fue',ph:'Propina, me pagaron, regalo…'}],
+    save:v=>{if(!(num(v.monto)>0))return 'El monto debe ser mayor a 0.';
+      const m={id:uid(),fecha:todayISO(),tipo:'ingreso',monto:num(v.monto),desc:(v.desc||'Efectivo').trim(),cat:'Ingreso',metodo:'cuenta',manual:true};
+      m.cuenta=moveCash(m.monto,a.id);S.movs.unshift(m);commit('Efectivo agregado');}});
+}
+function efSacar(){
+  const a=ensureEfectivo(),d=accs().find(x=>x.tipo==='debito');
+  if(!d){toast('Agrega una cuenta de débito primero');return}
+  editTransfer({from:d.id,to:a.id});
+}
+function efGasto(){const a=ensureEfectivo();editMov({metodo:a.id})}
+function menuCompartido(){
+  if(!S.grupos.length){toast('Primero crea un grupo');editGrupo();return}
+  if(S.grupos.length===1){editGasto(S.grupos[0].id);return}
+  const it=(g)=>`<button data-a="pickGrupo" data-id="${g.id}"><span><span class="t">${esc(g.nombre)}</span></span>${ICON.chev}</button>`;
+  $('#modal').innerHTML=`<div class="scrim" data-a="closeModal"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="Grupo"><div class="sheet-h"><h2>¿En qué grupo?</h2><button class="btn ghost sm" type="button" data-a="closeModal">Cerrar</button></div><div class="menu">${S.grupos.map(it).join('')}</div></div>`;
+}
+
 /* ===== grupos (gastos compartidos) ===== */
 const meName=()=>S.nombre||'Yo';
 const gMembers=g=>[{id:'yo',nombre:meName()},...g.miembros];
@@ -790,16 +828,21 @@ function groupTotals(){
 function compartirPago(i,rec,monto,fecha,gid){
   const g=S.grupos.find(x=>x.id===gid);if(!g)return;
   const ids=gMembers(g).map(m=>m.id),partes=splitEqual(monto,ids);
-  g.gastos.unshift({id:uid(),fecha,desc:i.name,monto,pagador:'yo',partes,srcKey:i.key,cashDelta:0,movId:null,vals:null});
+  g.gastos.unshift({id:uid(),fecha,desc:i.name,monto,pagador:'yo',partes,srcKey:i.key,cashDelta:0,movId:null,vals:null,pmedio:(i.kind==='item'&&i.ref&&i.ref.medio)||rec.cuenta||i.pmedio||''});
   const mov=S.movs.find(m=>m.id===rec.mov);if(mov)mov.miParte=partes.yo;
 }
 function applyGasto(g,x,v){
-  if(x.pagador==='yo'&&v.descontar){x.cuentaId=moveCash(-x.monto);x.cashDelta=-x.monto}else x.cashDelta=0;
+  x.cashDelta=0;x.cardId=null;x.cardDelta=0;x.pmedio=x.pagador==='yo'?normMedio(v.medio):'';
+  if(x.pagador==='yo'&&v.descontar){
+    if(isCardMedio(x.pmedio)){const c=cardOf(x.pmedio);c.balance=r2((+c.balance||0)+x.monto);x.cardId=c.id;x.cardDelta=x.monto}
+    else{x.cuentaId=moveCash(-x.monto,x.pmedio);x.cashDelta=-x.monto}
+  }
   x.movId=null;
   if(v.miparte&&(x.partes.yo||0)>0){const id=uid();x.movId=id;S.movs.unshift({id,fecha:x.fecha,tipo:'egreso',monto:x.partes.yo,desc:`${x.desc} (${g.nombre})`,cat:v.cat||'Wants',metodo:'cuenta',noCash:true,grupoId:g.id})}
 }
 function revertGasto(x){
   moveCash(-(x.cashDelta||0),x.cuentaId);
+  if(x.cardDelta){const c=cardOf(x.cardId);if(c)c.balance=Math.max(0,r2((+c.balance||0)-x.cardDelta))}
   if(x.movId)S.movs=S.movs.filter(m=>m.id!==x.movId);
 }
 function editGrupo(id){
@@ -829,8 +872,8 @@ function editGasto(gid,xid){
   const ms=gMembers(g);
   let v;
   if(x&&x.vals)v={...x.vals};
-  else if(x){v={desc:x.desc,monto:x.monto,fecha:x.fecha,pagador:x.pagador,reparto:'exacto',descontar:false,miparte:!!x.movId,cat:'Wants'};ms.forEach(m=>v['x_'+m.id]=x.partes[m.id]||0)}
-  else{v={desc:'',monto:'',fecha:todayISO(),pagador:'yo',reparto:'igual',descontar:true,miparte:true,cat:'Wants'};ms.forEach(m=>{v['p_'+m.id]=true;v['x_'+m.id]=''})}
+  else if(x){v={desc:x.desc,monto:x.monto,fecha:x.fecha,pagador:x.pagador,reparto:'exacto',descontar:false,miparte:!!x.movId,cat:'Wants',medio:x.pmedio||ultMedio()};ms.forEach(m=>v['x_'+m.id]=x.partes[m.id]||0)}
+  else{v={desc:'',monto:'',fecha:todayISO(),pagador:'yo',reparto:'igual',descontar:true,miparte:true,cat:'Wants',medio:ultMedio()};ms.forEach(m=>{v['p_'+m.id]=true;v['x_'+m.id]=''})}
   openForm({title:x?'Editar gasto':'Gasto compartido',vals:v,del:!!x,saveLabel:x?'Guardar':'Registrar gasto',
     fields:v=>[
       {k:'desc',label:'¿Qué fue?',ph:'Comida, luz, Uber…'},
@@ -839,7 +882,7 @@ function editGasto(gid,xid){
       {k:'pagador',label:'Quién pagó',type:'select',opts:ms.map(m=>[m.id,m.id==='yo'?'Yo':m.nombre]),dep:1},
       {k:'reparto',label:'Cómo se divide',type:'select',full:1,opts:[['igual','En partes iguales entre quienes marque'],['exacto','Con montos distintos']],dep:1},
       ...(v.reparto==='igual'?ms.map(m=>({k:'p_'+m.id,label:`Participa ${m.id==='yo'?'(yo)':m.nombre}`,type:'check'})):ms.map(m=>({k:'x_'+m.id,label:`Le toca a ${m.id==='yo'?'mí':m.nombre}`,type:'number'}))),
-      ...(v.pagador==='yo'?[{k:'descontar',label:'Ya salió de mi saldo',type:'check',hint:'Resta el total de tu saldo disponible.'}]:[]),
+      ...(v.pagador==='yo'?[{k:'medio',label:'Con qué pagaste',type:'select',full:1,opts:medioOpts()},{k:'descontar',label:'Ya salió de mi saldo o se cargó a la tarjeta',type:'check',hint:'Resta el total de esa cuenta, o lo suma a lo que debes en la tarjeta.'}]:[]),
       {k:'miparte',label:'Contar mi parte en mi presupuesto',type:'check',dep:1},
       ...(v.miparte?[{k:'cat',label:'Categoría de mi parte',type:'select',opts:catOpts}]:[])],
     save:v=>{
@@ -857,6 +900,7 @@ function editGasto(gid,xid){
         if(Math.abs(sum-monto)>0.009)return `Los montos suman ${fmt(sum)} y el total es ${fmt(monto)}. Ajusta la diferencia de ${fmt(monto-sum)}.`;
       }
       const f=v.fecha||todayISO();
+      if(v.pagador==='yo'&&v.medio)S.ultMedio=v.medio;
       if(!x&&!v._force){
         const dup=g.gastos.find(y=>Math.abs(y.monto-monto)<0.01&&Math.abs(dnum(y.fecha)-dnum(f))<=1);
         if(dup){v._force=true;return `Ya registraste ${fmt(dup.monto)} el ${dshort(dup.fecha)} (${dup.desc}). Si es otro gasto, toca Registrar gasto otra vez.`}
@@ -1191,6 +1235,8 @@ const mergeAlertas=a=>{const d=defAlertas();a=a||{};return{...d,...a,act:{...d.a
 const isCardMedio=m=>!!cardOf(m);
 const normMedio=m=>(!m||m==='cuenta')?((defAcc()||{}).id||'cuenta'):m;
 const medioOpts=()=>[...accs().filter(isLiquid).map(a=>[a.id,(a.tipo==='paypal'?'PayPal ':a.tipo==='efectivo'?'Efectivo ':a.tipo==='ahorro'?'':'Débito ')+a.nombre.replace(/^(débito|efectivo|paypal)\s+/i,'')]),...S.cards.map(c=>[c.id,'Tarjeta '+c.nombre])];
+const ultMedio=()=>{const u=S&&S.ultMedio;return(u&&(acc(u)||cardOf(u)))?u:normMedio('cuenta')};
+const medioName=id=>{const c=cardOf(id);if(c)return 'tarjeta '+c.nombre;const a=acc(id);return a?a.nombre:''};
 const destOpts=()=>accs().map(a=>[a.id,a.nombre]);
 function snapshot(){
   if(!S)return;const mk=monthKey(todayISO());S.snap=S.snap||{};
@@ -1296,6 +1342,7 @@ function projectAcc(days,pend){
   accs().filter(isLiquid).forEach(a=>bal[a.id]=+a.saldo||0);
   pend.forEach(i=>{
     if(i.kind==='item'&&isCardMedio(i.ref.medio))return;
+    if(i.date<t&&!S.contarVencidos)return;
     const d=i.date<t?t:i.date;if(d>addDays(t,days))return;
     const id=i.tipo==='ingreso'?accIdOf(i.ref.destino):i.kind==='item'?accIdOf(i.ref.medio):accIdOf(i.ref.cuenta);
     (ev[d]=ev[d]||[]).push([id,(i.tipo==='egreso'?-1:1)*i.amount]);
@@ -1674,8 +1721,8 @@ function vTarjetasCredito(){
     const p=parse(t),cutThis=clampDay(p.y,p.m,+c.corte);
     const ncut=cutThis>=t?cutThis:(()=>{const n=shiftMonth(monthKey(t),1).split('-').map(Number);return clampDay(n[0],n[1]-1,+c.corte)})();
     return `<article><button class="cardface c-${c.color||'navy'}" data-a="editCard" data-id="${c.id}" aria-label="Editar ${esc(c.nombre)}"><div class="nm"><span>${esc(c.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>Debes</small><div class="bal">${fmt0(c.balance)}</div><div class="prog"><i style="width:${Math.min(100,u).toFixed(0)}%"></i></div><small style="margin-top:6px">${c.limite>0?`${u.toFixed(0)}% de ${fmt0(c.limite)}`:'Sin límite capturado'}</small></div></button>
-      <div style="padding:8px 2px 0"><div class="kv"><span>Corte</span><span>${dshort(ncut)} · ${rel(ncut)}</span></div>
-      <div class="kv"><span>Siguiente pago</span><span>${nx?`${dshort(nx.date)} · ${fmt0(nx.amount)}${nx.est?' aprox.':''}`:'—'}</span></div>
+      <div style="padding:8px 2px 0"><div class="kv"><span>Corte</span>${+c.corte>=1?`<span>${dshort(ncut)} · ${rel(ncut)}</span>`:`<button class="link" data-a="editCard" data-id="${c.id}">Falta capturarlo</button>`}</div>
+      <div class="kv"><span>Siguiente pago</span><span>${nx?(+c.corte>=1?`${dshort(nx.date)} · ${fmt0(nx.amount)}${nx.est?' aprox.':''}`:`Se cuenta tu saldo: ${fmt0(nx.amount)}`):'—'}</span></div>
       ${(c.msi||[]).map(q=>{const hechos=q.meses-q.remaining,end=shiftMonth(monthKey(t),Math.max(0,q.remaining-1)).split('-').map(Number);return `<div class="msi"><div><b>${esc(q.concepto)}</b><span class="muted small">${fmt0(msiMensual(q))} al mes · ${q.remaining>0?`faltan ${q.remaining}`:'liquidado'}</span></div><button class="link" data-a="editMsi" data-id="${c.id}" data-p="${q.id}">Editar</button><div class="prog ${q.remaining===0?'good':''}"><i style="width:${(hechos/q.meses*100).toFixed(0)}%"></i></div></div>`}).join('')}
       <button class="link" style="margin-top:10px" data-a="addMsi" data-id="${c.id}">Agregar compra a meses</button></div></article>`}).join('');
   return `<div><p class="muted" style="margin:0">${S.cards.length?`Debes <b class="n" style="color:var(--ink)">${fmt0(deuda)}</b>${limite>0?` · ${(deuda/limite*100).toFixed(0)}% de uso`:''}`:''}</p></div>
@@ -1787,7 +1834,7 @@ function vGrupo(g){
   const lista=[...g.gastos.map(x=>({f:x.fecha,k:'g',x})),...g.pagos.map(p=>({f:p.fecha,k:'p',x:p}))].sort((a,b)=>a.f<b.f?1:a.f>b.f?-1:0);
   return head+`<div class="tools"><section class="box"><h2>Cuentas claras<small>contigo</small></h2>${cuentas}</section>
   <section class="box"><h2>Cobros programados<button class="link" data-a="addCargo" data-g="${g.id}">Agregar</button></h2>${(g.cargos||[]).length?g.cargos.map(c=>`<div class="kv"><span>${esc(gName(g,c.miembro))}: ${esc(c.concepto)}, día ${c.dia}</span><span><span class="n">${fmt(c.monto)}</span> <button class="btn ghost sm" data-a="editCargo" data-g="${g.id}" data-id="${c.id}">Editar</button></span></div>`).join(''):'<div class="small muted">Para rentas de cuarto u otros cobros que se repiten cada mes.</div>'}<div style="margin-top:12px"><button class="btn ghost sm" data-a="addPago" data-g="${g.id}">Registrar pago entre personas</button></div></section></div>
-  <section class="sect"><h2>Gastos y pagos del grupo</h2>${lista.length?lista.map(({k,x})=>k==='g'?`<div class="row nochk">${rdate(x.fecha)}<button class="rmain" data-a="editGasto" data-g="${g.id}" data-id="${x.id}"><div class="rname">${esc(x.desc)}</div><div class="rsub">${x.pagador==='yo'?'Pagaste tú':'Pagó '+esc(gName(g,x.pagador))} · ${Object.keys(x.partes).map(id=>`${esc(id==='yo'?'tú':gName(g,id))} ${fmt0(x.partes[id])}`).join(', ')}</div></button><div class="ramt">${fmt(x.monto)}</div></div>`:`<div class="row nochk">${rdate(x.fecha)}<div class="rmain"><div class="rname">${x.de==='yo'?`Le pagaste a ${esc(gName(g,x.a))}`:x.a==='yo'?`${esc(gName(g,x.de))} te pagó`:`${esc(gName(g,x.de))} le pagó a ${esc(gName(g,x.a))}`}</div><div class="rsub"><span class="tag ok">Pago</span>${esc(x.nota||'')}</div></div><div class="ramt in">${fmt(x.monto)}</div><div class="ract"><button class="link" data-a="delPago" data-g="${g.id}" data-id="${x.id}">Quitar</button></div></div>`).join(''):'<div class="empty"><b>Sin gastos todavía</b>Toca + para registrar el primero.</div>'}</section>`;
+  <section class="sect"><h2>Gastos y pagos del grupo</h2>${lista.length?lista.map(({k,x})=>k==='g'?`<div class="row nochk">${rdate(x.fecha)}<button class="rmain" data-a="editGasto" data-g="${g.id}" data-id="${x.id}"><div class="rname">${esc(x.desc)}</div><div class="rsub">${x.pagador==='yo'?'Pagaste tú'+(x.pmedio&&medioName(x.pmedio)?' con '+esc(medioName(x.pmedio)):''):'Pagó '+esc(gName(g,x.pagador))} · ${Object.keys(x.partes).map(id=>`${esc(id==='yo'?'tú':gName(g,id))} ${fmt0(x.partes[id])}`).join(', ')}</div></button><div class="ramt">${fmt(x.monto)}</div></div>`:`<div class="row nochk">${rdate(x.fecha)}<div class="rmain"><div class="rname">${x.de==='yo'?`Le pagaste a ${esc(gName(g,x.a))}`:x.a==='yo'?`${esc(gName(g,x.de))} te pagó`:`${esc(gName(g,x.de))} le pagó a ${esc(gName(g,x.a))}`}</div><div class="rsub"><span class="tag ok">Pago</span>${esc(x.nota||'')}</div></div><div class="ramt in">${fmt(x.monto)}</div><div class="ract"><button class="link" data-a="delPago" data-g="${g.id}" data-id="${x.id}">Quitar</button></div></div>`).join(''):'<div class="empty"><b>Sin gastos todavía</b>Toca + para registrar el primero.</div>'}</section>`;
 }
 
 function vAjustes(){
@@ -1796,6 +1843,7 @@ function vAjustes(){
   return `<div class="top"><div><h1>Ajustes</h1><p>Tu información es privada. Solo tú la ves.</p></div></div>
   <div class="tools"><section><h2>General</h2><div class="fgrid">${inp('Tu nombre','nombre','', 'text')}<div class="fld"><label>Saldo disponible</label><div class="n" style="font:700 20px var(--f-display);padding:8px 0">${fmt0(S.cash)}</div><small>Suma tus cuentas de débito, efectivo y PayPal. Se edita en Tarjetas, en Débito y ahorro.</small></div>${inp('Fondo de emergencia','emergencia','Lo que tienes guardado aparte')}${inp('Gasto variable por día','gastoDiario','Comida fuera, transporte. Afina la proyección.')}${inp('Ingreso mensual fijo (opcional)','ingresoProy','En 0 se calcula con tus ingresos recurrentes')}</div></section>
   <section><h2>Regla de presupuesto<small>${suma===100?'suma 100%':`suma ${suma}%, debería ser 100%`}</small></h2><div class="fgrid"><div class="fld"><label for="sp_N">Necesidades %</label><input id="sp_N" data-sp="Needs" type="number" inputmode="decimal" value="${sp.Needs}"></div><div class="fld"><label for="sp_W">Gustos %</label><input id="sp_W" data-sp="Wants" type="number" inputmode="decimal" value="${sp.Wants}"></div><div class="fld"><label for="sp_A">Ahorro %</label><input id="sp_A" data-sp="Ahorro" type="number" inputmode="decimal" value="${sp.Ahorro}"></div></div><div class="small muted" style="margin-top:8px">La clásica es 50, 30 y 20.</div></section></div>
+  <section class="sect"><h2>Pagos que no marcaste</h2><label class="chk-l"><input type="checkbox" data-cv="1" ${S.contarVencidos?'checked':''}> Seguir restándolos de mi saldo proyectado</label><div class="small muted" style="margin-top:6px">Apagado: si un pago pasó de fecha y no lo marcaste, no se descuenta de tus flujos; solo te sale como vencido. Así un pago que no se hizo no se te arrastra al día siguiente.</div></section>
   ${CFG?`<section class="sect"><h2>Cuenta<small>${AU?esc(AU.email):'sin iniciar sesión'}</small></h2><div class="small muted" style="margin-bottom:10px">${AU?'Tus datos se guardan en tu cuenta y se sincronizan entre tus dispositivos. Los grupos compartidos se actualizan con la otra persona. Al cerrar sesión, este dispositivo se limpia: tus datos siguen en tu cuenta.':'Inicia sesión para guardar tus datos en la nube, usarlos en otro teléfono y compartir grupos.'}</div><div class="chips">${AU?'<button class="btn ghost sm" data-a="syncNow">Sincronizar ahora</button><button class="btn ghost sm" data-a="logout">Cerrar sesión</button>':'<button class="btn sm" data-a="login">Iniciar sesión</button>'}</div></section>`:''}
   <section class="sect"><h2>Apariencia<small>solo en este dispositivo</small></h2>
     <div class="thm" role="group" aria-label="Tema">${THEMES.map(([k,l,bg])=>`<button type="button" data-a="setTheme" data-v="${k}" aria-pressed="${(ui.theme||'auto')===k}"><i style="background:${bg}"></i>${l}</button>`).join('')}</div>
@@ -2021,7 +2069,7 @@ const A={
   snUndo:()=>{if(SN){undoInst(SN.key);SN=null;$('#toast').innerHTML='';commit('Pago deshecho')}},
   snShare:()=>snShare(),
   add:()=>{const t=ui.tab;if(t==='pagos')editItem();else if(t==='tarjetas')(ui.sub.tar==='deb'?editCuenta():editCard());else if(t==='ahorro')editCuenta(null,'ahorro');else if(t==='mov')editMov();else if(t==='grupos')ui.grupo?editGasto(ui.grupo):editGrupo();else addMenu()},
-  menuPago:()=>{closeModal();editItem(null,'egreso')},menuIngreso:()=>{closeModal();editItem(null,'ingreso')},menuGasto:()=>{closeModal();editMov()},
+  menuPago:()=>{closeModal();editItem(null,'egreso')},menuIngreso:()=>{closeModal();editItem(null,'ingreso')},menuGasto:()=>{closeModal();editMov()},menuCompartido:()=>{closeModal();menuCompartido()},pickGrupo:b=>{closeModal();editGasto(b.dataset.id)},menuEfectivo:()=>efectivoMenu(),efAgregar:()=>{closeModal();editEfectivoIn()},efSacar:()=>{closeModal();efSacar()},efGasto:()=>{closeModal();efGasto()},
   undo:el=>{undoInst(el.dataset.k);$('#toast').innerHTML='';commit('Pago deshecho')},
   editinst:el=>{const i=IM[el.dataset.k];if(!i)return;i.kind==='item'?editItem(i.ref.id):editCard(i.ref.id)},
   addItem:el=>editItem(null,el.dataset.tipo,el.dataset.freq),
@@ -2102,6 +2150,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
   const el=e.target;
   if(el.dataset.sim&&S){S.sim=S.sim||{};S.sim[el.dataset.sim]=el.value;if(el.dataset.sim==='cuenta'){const a=acc(el.value);if(a){S.sim.saldo=a.saldo;S.sim.tasa=a.tasa||0}}persist();render();return}
+  if(el.dataset.cv&&S){S.contarVencidos=el.checked;persist();render();return}
   if(el.dataset.al&&S){S.alertas=mergeAlertas(S.alertas);S.alertas[el.dataset.al]=num(el.value);persist();render();return}
   if(el.dataset.alc&&S){S.alertas=mergeAlertas(S.alertas);S.alertas.act[el.dataset.alc]=el.checked;persist();render();return}
   if(el.dataset.f&&M){M.vals[el.dataset.f]=el.type==='checkbox'?el.checked:el.value;if(el.tagName==='SELECT'||el.dataset.dep!==undefined||el.type==='checkbox'){M.err='';renderModal()}return}
