@@ -310,13 +310,30 @@ main h2 small{font:500 13.5px var(--f-body);color:var(--muted)}
 :root[data-theme=verde]{--ink:#E4F6EC;--muted:#A9D3BF;--ring:#6FA68A;--accent:#7FE0AD;--accent-soft:rgba(127,224,173,.2);--accent-ink:#06150D;--bg:rgba(8,28,20,.84);--surface:rgba(255,255,255,.08);--glass:rgba(255,255,255,.1);--gb:rgba(190,245,215,.2);--surface2:var(--glass);--line:rgba(127,224,173,.28);--good:#7FE0AD;--good-soft:rgba(127,224,173,.16);--warn:#F2C56B;--warn-soft:rgba(242,197,107,.15);--bad:#FF8A5C;--bad-soft:rgba(255,138,92,.18);--toast-link:#1F6F4A;color-scheme:dark;
  --mesh:radial-gradient(60% 45% at 10% 5%,#04100A 0,transparent 70%),radial-gradient(55% 45% at 95% 30%,#1F7A55 0,transparent 70%),radial-gradient(65% 50% at 20% 70%,#0E4A38 0,transparent 70%),radial-gradient(60% 50% at 90% 100%,#2E8F6F 0,transparent 75%),#08241A}
 :root[data-theme=aurora] body,:root[data-theme=noche] body,:root[data-theme=verde] body{background:transparent}
+:root[data-theme=cristal] body{background:transparent}
 :root[data-theme=aurora],:root[data-theme=noche],:root[data-theme=verde]{background:#CFD4F2}
+:root[data-theme=cristal]{background:#CFD4F2}
 :root[data-theme=noche]{background:#1D1850}:root[data-theme=verde]{background:#08241A}
 :root[data-theme=aurora] body::before,:root[data-theme=noche] body::before,:root[data-theme=verde] body::before{content:"";position:fixed;inset:-40px;z-index:-2;background:var(--mesh);filter:blur(28px);pointer-events:none}
+:root[data-theme=cristal] body::before{content:"";position:fixed;inset:-40px;z-index:-2;background:var(--mesh);filter:blur(28px);pointer-events:none}
 :root[data-theme=aurora] body::after,:root[data-theme=noche] body::after,:root[data-theme=verde] body::after{content:"";position:fixed;inset:0;z-index:-1;opacity:.2;mix-blend-mode:overlay;pointer-events:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+:root[data-theme=cristal] body::after{content:"";position:fixed;inset:0;z-index:-1;opacity:.2;mix-blend-mode:overlay;pointer-events:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 :root[data-theme=aurora] :is(.box,.bar,.rail,.sheet,.seg),:root[data-theme=noche] :is(.box,.bar,.rail,.sheet,.seg),:root[data-theme=verde] :is(.box,.bar,.rail,.sheet,.seg){-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+:root[data-theme=cristal] :is(.box,.bar,.rail,.sheet,.seg){-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 :root[data-theme=aurora] :is(.box),:root[data-theme=noche] :is(.box),:root[data-theme=verde] :is(.box){border:1px solid var(--gb)}
+:root[data-theme=cristal] :is(.box){border:1px solid var(--gb)}
 :root[data-theme=aurora] h1,:root[data-theme=noche] h1,:root[data-theme=verde] h1{font-weight:300}
+:root[data-theme=cristal] h1{font-weight:300}
+/* tema Cristal: vidrio claro con tarjetas de color suave */
+:root[data-theme=cristal]{--ink:#14201A;--muted:#5D6B63;--ring:#7A8A81;--accent:#1F6F4A;--accent-soft:rgba(31,111,74,.14);--accent-ink:#fff;--bg:rgba(233,242,236,.7);--surface:rgba(255,255,255,.55);--glass:rgba(255,255,255,.5);--gb:rgba(255,255,255,.8);--surface2:var(--glass);--line:rgba(31,111,74,.2);--warn:#8A5A00;--toast-link:#7FE0AD;background:#E3EEE7;
+ --mesh:radial-gradient(55% 45% at 90% 8%,#4FB487 0,transparent 70%),radial-gradient(50% 40% at 5% 45%,#F0C46A 0,transparent 70%),radial-gradient(60% 45% at 95% 80%,#7FB4E8 0,transparent 70%),radial-gradient(50% 40% at 10% 100%,#B7D9C4 0,transparent 70%),#E3EEE7}
+:root[data-theme=cristal] .cardface.cx{background:color-mix(in srgb,var(--c1) 84%,transparent);-webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4);border:1px solid rgba(255,255,255,.34);box-shadow:0 8px 22px rgba(20,40,30,.16),inset 0 1px 0 rgba(255,255,255,.3)}
+:root[data-theme=cristal] .cardface.cx::after{background:rgba(255,255,255,.1)}
+:root[data-theme=cristal] .cardface .chip{width:34px;height:25px;border-radius:7px;background:linear-gradient(135deg,#F1DEA0,#B8993F);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+:root[data-theme=cristal] .cardface .nm{font-weight:700}
+.ciclo{margin-top:12px;position:relative;z-index:1}.ciclo .ln{position:relative;height:5px;border-radius:9px;background:rgba(255,255,255,.3)}.ciclo .ln i{position:absolute;left:0;top:0;bottom:0;border-radius:9px;background:var(--ct,#fff)}.ciclo .ln u{position:absolute;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:var(--ct,#fff);border:3px solid var(--c1)}
+.ciclo .lb{display:flex;justify-content:space-between;font-size:11.5px;opacity:.9;margin-top:7px;gap:8px}
+
 .swatches{display:flex;gap:10px;flex-wrap:wrap}
 .sw{width:44px;height:44px;border-radius:50%;border:2px solid var(--line);padding:0;background:var(--c)}
 .sw[aria-pressed=true]{outline:2px solid var(--ink);outline-offset:3px}
@@ -395,7 +412,7 @@ const KEY='cuentas-al-dia-v1', UIKEY='cuentas-al-dia-ui';
 let S=null, M=null, IM={}, dbDoc=null, dbState='local', ST=null;
 let ui={tab:'hoy',mes:monthKey(todayISO()),sub:{},sel:null,grupo:null,verMiembro:null};
 try{const u=JSON.parse(localStorage.getItem(UIKEY)||'null');if(u&&u.tab)ui.tab=u.tab;if(u&&u.theme)ui.theme=u.theme;if(u&&u.acc)ui.acc=u.acc}catch(e){}
-const THEMES=[['auto','Automático','linear-gradient(90deg,#fff 50%,#0A0E0C 50%)'],['claro','Blanco','#FFFFFF'],['dark','Negro','#0A0E0C'],['piedra','Piedra','#EEECE7'],['aurora','Aurora','linear-gradient(145deg,#6D7CE8,#F3C4DC 55%,#B9A4EE)'],['noche','Aurora noche','linear-gradient(145deg,#14102F,#3E3AA6 55%,#6B5BD9)'],['verde','Aurora verde','linear-gradient(145deg,#04100A,#0E4A38 55%,#2E8F6F)']];
+const THEMES=[['auto','Automático','linear-gradient(90deg,#fff 50%,#0A0E0C 50%)'],['claro','Blanco','#FFFFFF'],['dark','Negro','#0A0E0C'],['piedra','Piedra','#EEECE7'],['aurora','Aurora','linear-gradient(145deg,#6D7CE8,#F3C4DC 55%,#B9A4EE)'],['noche','Aurora noche','linear-gradient(145deg,#14102F,#3E3AA6 55%,#6B5BD9)'],['verde','Aurora verde','linear-gradient(145deg,#04100A,#0E4A38 55%,#2E8F6F)'],['cristal','Cristal','linear-gradient(145deg,#cfe8da,#f6efe2 55%,#a9cbf0)']];
 const ACCS={verde:['Verde','#1F6F4A','#E3F0E8','#5BC78F'],azul:['Azul','#2456B8','#E3EBFA','#7FA8FF'],violeta:['Violeta','#6B3FB5','#EEE6FA','#B795F5'],rosa:['Rosa','#B8316B','#FBE4EE','#F27AAB'],naranja:['Naranja','#B25A10','#FBEBD9','#F0A04B']};
 const SOLID=t=>t==='claro'||t==='dark'||t==='piedra';
 function applyTheme(){
@@ -405,7 +422,7 @@ function applyTheme(){
   if(SOLID(t)){const a=ACCS[ui.acc||'verde']||ACCS.verde,d=t==='dark';
     r.style.setProperty('--accent',d?a[3]:a[1]);r.style.setProperty('--accent-soft',d?'color-mix(in srgb,'+a[3]+' 22%,transparent)':a[2])}
   else{r.style.removeProperty('--accent');r.style.removeProperty('--accent-soft')}
-  const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='dark'?'#0A0E0C':t==='noche'?'#1D1850':t==='piedra'?'#EEECE7':t==='aurora'?'#CFD4F2':t==='verde'?'#08241A':'#FFFFFF';
+  const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='dark'?'#0A0E0C':t==='noche'?'#1D1850':t==='piedra'?'#EEECE7':t==='aurora'?'#CFD4F2':t==='verde'?'#08241A':t==='cristal'?'#E3EEE7':'#FFFFFF';
 }
 try{applyTheme();if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if((ui.theme||'auto')==='auto')applyTheme()})}catch(e){}
 const blank=()=>({v:3,nombre:'',cash:0,cuentas:[],alertas:null,comercios:{},snap:{},sim:{},emergencia:0,split:{Needs:50,Wants:30,Ahorro:20},ingresoProy:0,gastoDiario:0,demo:false,inicio:todayISO(),cards:[],items:[],movs:[],paid:{},grupos:[],stmtSeen:{},stmtHist:{},updated:0});
@@ -2220,11 +2237,16 @@ function vPagos(){
   ${done.length?`<section class="sect"><h2>Pagados</h2>${done.map(i=>row(i)).join('')}</section>`:''}`;
 }
 
+function cicloHTML(c){
+  const f=fechasTarjeta(c);if(!f)return'';
+  const dias=+c.diasPago||20,total=dias,pos=Math.max(0,Math.min(100,(total-f.dLimite)/total*100));
+  return `<div class="ciclo"><div class="ln"><i style="width:${pos.toFixed(0)}%"></i><u style="left:${pos.toFixed(0)}%"></u></div><div class="lb"><span>Corte ${dshort(f.ncut)}</span><span>Pagar antes del ${dshort(f.limite)}</span></div></div>`;
+}
 function cardArticle(c,t,all,nav){
     const u=c.limite>0?c.balance/c.limite*100:0,nx=all.find(i=>i.kind==='card'&&i.ref.id===c.id&&!i.rec);
     const p=parse(t),cutThis=clampDay(p.y,p.m,+c.corte);
     const ncut=cutThis>=t?cutThis:(()=>{const n=shiftMonth(monthKey(t),1).split('-').map(Number);return clampDay(n[0],n[1]-1,+c.corte)})();
-    return `<article><button class="${cardCls(c)}"${cardStyle(c)} data-a="${nav?'verItem':'editCard'}" data-id="${c.id}" aria-label="${nav?'Ver movimientos de':'Editar'} ${esc(c.nombre)}"><div class="nm"><span class="cn"><span class="mono" aria-hidden="true">${esc(cardMono(c))}</span>${esc(c.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>Debes</small><div class="bal">${fmt0(c.balance)}</div><div class="prog"><i style="width:${Math.min(100,u).toFixed(0)}%"></i></div><small style="margin-top:6px">${c.limite>0?`${u.toFixed(0)}% de ${fmt0(c.limite)}`:'Sin límite capturado'}</small></div></button>
+    return `<article><button class="${cardCls(c)}"${cardStyle(c)} data-a="${nav?'verItem':'editCard'}" data-id="${c.id}" aria-label="${nav?'Ver movimientos de':'Editar'} ${esc(c.nombre)}"><div class="nm"><span class="cn"><span class="mono" aria-hidden="true">${esc(cardMono(c))}</span>${esc(c.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>Debes</small><div class="bal">${fmt0(c.balance)}</div><div class="prog"><i style="width:${Math.min(100,u).toFixed(0)}%"></i></div><small style="margin-top:6px">${c.limite>0?`${u.toFixed(0)}% de ${fmt0(c.limite)}`:'Sin límite capturado'}</small>${ui.theme==='cristal'?cicloHTML(c):''}</div></button>
       <div style="padding:8px 2px 0"><div class="kv"><span>Corte</span>${+c.corte>=1?`<span>${dshort(ncut)} · ${rel(ncut)}</span>`:`<button class="link" data-a="editCard" data-id="${c.id}">Falta capturarlo</button>`}</div>
       <div class="kv"><span>Siguiente pago</span><span>${nx?(+c.corte>=1?`${dshort(nx.date)} · ${fmt0(nx.amount)}${nx.est?' aprox.':''}`:`Se cuenta tu saldo: ${fmt0(nx.amount)}`):'—'}</span></div>
       ${(c.msi||[]).map(q=>{const hechos=q.meses-q.remaining,end=shiftMonth(monthKey(t),Math.max(0,q.remaining-1)).split('-').map(Number);return `<div class="msi"><div><b>${esc(q.concepto)}</b><span class="muted small">${fmt0(msiMensual(q))} al mes · ${q.remaining>0?`faltan ${q.remaining}`:'liquidado'}</span></div><button class="link" data-a="editMsi" data-id="${c.id}" data-p="${q.id}">Editar</button><div class="prog ${q.remaining===0?'good':''}"><i style="width:${(hechos/q.meses*100).toFixed(0)}%"></i></div></div>`}).join('')}
