@@ -335,6 +335,17 @@ main h2 small{font:500 13.5px var(--f-body);color:var(--muted)}
 .ciclo{margin-top:12px;position:relative;z-index:1}.ciclo .ln{position:relative;height:5px;border-radius:9px;background:rgba(255,255,255,.3)}.ciclo .ln i{position:absolute;left:0;top:0;bottom:0;border-radius:9px;background:var(--ct,#fff)}.ciclo .ln u{position:absolute;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:var(--ct,#fff);border:3px solid var(--c1)}
 .ciclo .lb{display:flex;justify-content:space-between;font-size:11.5px;opacity:.9;margin-top:7px;gap:8px}
 
+/* grupo */
+.gav{width:40px;height:40px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font:700 13px var(--f-body);font-style:normal;flex:none}
+.ghero{background:var(--surface2);border-radius:22px;padding:18px 20px}.ghero small{color:var(--muted)}.gbig{font:700 36px/1.1 var(--f-display);letter-spacing:-.03em;margin:2px 0 4px;font-variant-numeric:tabular-nums}.gbig.pos{color:var(--good)}.gbig.neg{color:var(--bad)}.ghero p{margin:0;color:var(--muted);font-size:14px}
+.gact{display:grid;grid-template-columns:1.2fr 1fr;gap:10px}.gact .btn{width:100%}
+.gcode{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 12px;background:var(--accent-soft);border-radius:18px;padding:12px 16px}.gcode small{display:block;color:var(--muted);font-size:12px}.gcode b{font-size:18px;letter-spacing:.03em;white-space:nowrap}.gcb{display:flex;gap:8px;flex:none}
+.gper{border-top:1px solid var(--line)}.gper:first-child{border-top:0}.grow{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:12px;padding:13px 0;width:100%;cursor:pointer}.gt{flex:1;min-width:0;display:block}.gt b{display:block}.gt small{color:var(--muted);font-size:13px}
+.ghist{padding:0 0 12px}
+.gsug{background:var(--surface2);border-radius:20px;padding:14px 16px;margin-top:12px}.gsug h2{margin:0 0 8px;display:flex;justify-content:space-between;align-items:baseline;font-size:16px}.gsug h2 small{color:var(--muted);font-weight:500;font-size:13px}.gsug.ok{text-align:center}
+.gs{display:flex;align-items:center;gap:10px;padding:8px 0}.gs+.gs{border-top:1px solid var(--line)}.gs .gav{width:34px;height:34px;font-size:12px}.gs .n{font-weight:700}
+.gdot{position:absolute;top:4px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--accent)}.seg button{position:relative}
+
 .swatches{display:flex;gap:10px;flex-wrap:wrap}
 .sw{width:44px;height:44px;border-radius:50%;border:2px solid var(--line);padding:0;background:var(--c)}
 .sw[aria-pressed=true]{outline:2px solid var(--ink);outline-offset:3px}
@@ -2797,22 +2808,6 @@ function vGrupos(){
   ${S.grupos.length?`<div class="stats"><div class="stat good"><b>${fmt0(gt.owed)}</b><span>te deben</span></div><div class="stat ${gt.owe>0?'bad':''}"><b>${fmt0(gt.owe)}</b><span>debes</span></div></div>`:''}
   <div class="grid g2">${S.grupos.map(g=>`<section class="box"><h2>${esc(g.nombre)}<small>${({depa:'Casa o depa',salidas:'Salidas',viaje:'Viaje',otro:'Grupo'})[g.tipo]||'Grupo'}</small></h2>${g.miembros.map(m=>{const b=balanceWith(g,m.id);return `<div class="balrow"><span class="who">${esc(m.nombre)}</span><span class="st ${b>0.005?'pos':b<-0.005?'neg':''}">${Math.abs(b)<0.005?'A mano':(b>0?'Te debe ':'Le debes ')+fmt(Math.abs(b))}</span></div>`}).join('')}<div style="margin-top:12px"><button class="link" data-a="abrirGrupo" data-id="${g.id}">Abrir</button>${msgNuevos(g)?` <span class="pill info">${msgNuevosTxt(msgNuevos(g))}</span>`:''}</div></section>`).join('')||`<div class="empty" style="grid-column:1/-1"><b>Todavía no tienes grupos</b>Crea uno para tu depa, para las salidas con tus amigas o para un viaje. Cada gasto queda con fecha, quién pagó y cómo se dividió, y puedes ver quién le debe a quién en cualquier momento.</div>`}</div>`;
 }
-function vGrupo(g){
-  const ms=g.miembros,ver=ui.verMiembro;
-  const head=`<div><button class="back" data-a="grupoBack">‹ Grupos</button><header class="top"><div><h1>${esc(g.nombre)}</h1><p>${ms.map(m=>esc(m.nombre)).join(', ')} y tú · <button class="link" data-a="editGrupo" data-id="${g.id}">Editar</button></p></div>${plusBtn('Gasto compartido')}</header>${cloudOn()?(g.cloud?`<p class="small muted" style="margin:0 0 4px">Compartido · código <b class="nums">${showCode(g.cloud.id)}</b> <button class="link" data-a="copyCode" data-c="${g.cloud.id}">Copiar</button> · <button class="link" data-a="invitar" data-id="${g.id}">Invitar</button> · <button class="link" data-a="syncGrupo" data-id="${g.id}">Actualizar</button>${g.cloud.lost?' · <span style="color:var(--bad)">el grupo ya no existe en la nube</span>':''}</p>`:`<p class="small muted" style="margin:0 0 4px"><button class="link" data-a="shareGrupo" data-id="${g.id}">Compartir con otra persona</button></p>`):''}</div>`;
-  const cuentas=ms.map(m=>{
-    const b=balanceWith(g,m.id),ev=eventsWith(g,m.id),open=ver===m.id;
-    return `<div class="balrow"><div><span class="who">${esc(m.nombre)}</span> <span class="small muted">${ev.length===1?'1 movimiento':ev.length+' movimientos'}</span></div><span class="st ${b>0.005?'pos':b<-0.005?'neg':''}">${Math.abs(b)<0.005?'A mano':(b>0?'Te debe ':'Le debes ')+fmt(Math.abs(b))}</span>
-      <div class="ac">${Math.abs(b)>=0.005?`<button class="btn sm" data-a="saldar" data-g="${g.id}" data-m="${m.id}">${b>0?'Registrar que me pagó':'Registrar que le pagué'}</button>`:''}${b>0.005&&g.cloud?`<button class="btn ghost sm" data-a="msgRecordar" data-g="${g.id}" data-m="${m.id}">Recordar</button>`:''}<button class="btn ghost sm" data-a="verMiembro" data-m="${m.id}">${open?'Ocultar historial':'Ver historial'}</button></div>
-      ${open?`<div style="grid-column:1 / -1;margin-top:6px">${ev.length?ev.slice().reverse().map(e=>`<div class="led"><span class="d">${dshort(e.fecha)}</span><span>${esc(e.desc)}<br><span class="d">${esc(e.det)}</span></span><span class="amt" style="color:${e.tipo==='pago'?'var(--good)':e.delta>0?'var(--ink)':'var(--bad)'}">${e.delta>0?'+':'−'}${fmt(Math.abs(e.delta))}</span><span class="run">Saldo ${Math.abs(e.run)<0.005?'a mano':fmt(e.run)}</span></div>`).join(''):'<div class="empty">Aún no hay movimientos con esta persona.</div>'}</div>`:''}</div>`}).join('');
-  const lista=[...g.gastos.map(x=>({f:x.fecha,k:'g',x})),...g.pagos.map(p=>({f:p.fecha,k:'p',x:p}))].sort((a,b)=>a.f<b.f?1:a.f>b.f?-1:0);
-  return head+`<div class="tools"><section class="box"><h2>Cuentas claras<small>contigo</small></h2>${cuentas}</section>
-  <section class="box"><h2>Cobros programados<button class="link" data-a="addCargo" data-g="${g.id}">Agregar</button></h2>${(g.cargos||[]).length?g.cargos.map(c=>`<div class="kv"><span>${esc(gName(g,c.miembro))}: ${esc(c.concepto)}, día ${c.dia}</span><span><span class="n">${fmt(c.monto)}</span> <button class="btn ghost sm" data-a="editCargo" data-g="${g.id}" data-id="${c.id}">Editar</button></span></div>`).join(''):'<div class="small muted">Para rentas de cuarto u otros cobros que se repiten cada mes.</div>'}<div style="margin-top:12px"><button class="btn ghost sm" data-a="addPago" data-g="${g.id}">Registrar pago entre personas</button></div></section></div>
-  ${gMensajesHTML(g)}
-  ${gMetasHTML(g)}
-  <section class="sect"><h2>Gastos y pagos del grupo</h2>${lista.length?lista.map(({k,x})=>k==='g'?`<div class="row nochk">${rdate(x.fecha)}<button class="rmain" data-a="editGasto" data-g="${g.id}" data-id="${x.id}"><div class="rname">${esc(x.desc)}</div><div class="rsub">${x.pagador==='yo'?'Pagaste tú'+(x.pmedio&&medioName(x.pmedio)?' con '+esc(medioName(x.pmedio)):''):'Pagó '+esc(gName(g,x.pagador))} · ${Object.keys(x.partes).map(id=>`${esc(id==='yo'?'tú':gName(g,id))} ${fmt0(x.partes[id])}`).join(', ')}</div></button><div class="ramt">${fmt(x.monto)}</div>${g.cloud?`<div class="ract"><button class="link" data-a="msgRef" data-g="${g.id}" data-k="g" data-id="${x.id}">Comentar</button></div>`:''}</div>`:`<div class="row nochk">${rdate(x.fecha)}<div class="rmain"><div class="rname">${x.de==='yo'?`Le pagaste a ${esc(gName(g,x.a))}`:x.a==='yo'?`${esc(gName(g,x.de))} te pagó`:`${esc(gName(g,x.de))} le pagó a ${esc(gName(g,x.a))}`}</div><div class="rsub"><span class="tag ok">Pago</span>${esc(x.nota||'')}</div></div><div class="ramt in">${fmt(x.monto)}</div><div class="ract"><button class="link" data-a="delPago" data-g="${g.id}" data-id="${x.id}">Quitar</button></div></div>`).join(''):'<div class="empty"><b>Sin gastos todavía</b>Toca + para registrar el primero.</div>'}</section>`;
-}
-
 function vAjustes(){
   const sp=S.split,suma=(+sp.Needs||0)+(+sp.Wants||0)+(+sp.Ahorro||0);
   const inp=(l,k,h,type)=>`<div class="fld"><label for="s_${k}">${l}</label><input id="s_${k}" data-s="${k}" type="${type||'number'}" ${type==='text'?'':'inputmode="decimal" step="any"'} value="${esc(S[k]||'')}">${h?`<small>${h}</small>`:''}</div>`;
@@ -3552,6 +3547,90 @@ function vPanorama(){
   return head+nav+recs+debes+mesT+ingreso+gastas+lujos+pagas+`<p class="small muted" style="margin:0">Cuento tus gastos por fecha de compra, sin pagos a tarjetas, ahorro ni reembolsos. Los gustos y lujos son comida fuera, delivery, apps, compras, entretenimiento y viajes. Las recomendaciones son orientativas.</p>`;
 }
 
+/* ===== grupo: pantalla con pestañas, conciliador y código a la vista ===== */
+/* posición neta de cada persona: positivo = le deben, negativo = debe */
+function gNets(g){
+  const net={};gMembers(g).forEach(m=>net[m.id]=0);
+  const t=todayISO(),deu={};                                    // deu["a>b"] = lo que a le debe a b
+  const dd=(a,b,v)=>{if(a===b||!(v>0))return;deu[a+'>'+b]=(deu[a+'>'+b]||0)+v};
+  g.gastos.forEach(x=>Object.entries(x.partes||{}).forEach(([id,a])=>{if(id!==x.pagador&&a>0){dd(id,x.pagador,a)}}));
+  (g.cargos||[]).forEach(c=>{const n=occ({freq:'mensual',dia:c.dia},c.desde||t,t).length;dd(c.miembro,'yo',c.monto*n)});
+  g.pagos.forEach(p=>dd(p.a,p.de,p.monto));                     // un pago de "de" a "a" reduce lo que "de" le debía a "a"
+  let bruto=0;const vistos={};
+  Object.keys(deu).forEach(k=>{const [a,b]=k.split('>'),r=b+'>'+a;if(vistos[k]||vistos[r])return;vistos[k]=vistos[r]=1;const d=r2((deu[k]||0)-(deu[r]||0));if(Math.abs(d)>=0.005){bruto++;const [x,y]=d>0?[a,b]:[b,a];net[x]=(net[x]||0)-Math.abs(d);net[y]=(net[y]||0)+Math.abs(d)}});
+  Object.keys(net).forEach(k=>net[k]=r2(net[k]));
+  return{net,bruto};
+}
+/* pagos mínimos para que todos queden a mano */
+function gConciliar(g){
+  const {net,bruto}=gNets(g);
+  const cr=Object.entries(net).filter(([,v])=>v>0.005).map(([id,v])=>({id,v})).sort((a,b)=>b.v-a.v);
+  const de=Object.entries(net).filter(([,v])=>v<-0.005).map(([id,v])=>({id,v:-v})).sort((a,b)=>b.v-a.v);
+  const pagos=[];
+  while(cr.length&&de.length){
+    const d=de[0],c=cr[0],m=r2(Math.min(d.v,c.v));
+    if(m>=0.01)pagos.push({de:d.id,a:c.id,monto:m});
+    d.v=r2(d.v-m);c.v=r2(c.v-m);
+    if(d.v<0.01)de.shift();if(c.v<0.01)cr.shift();
+  }
+  return{pagos,bruto,net};
+}
+const gNom=(g,id)=>id==='yo'?'Tú':gName(g,id);
+const gAvCol=['#8a2be2','#E8590C','#0A8FD0','#C21A7B','#1F6F4A','#9A7410'];
+const gAv=(g,id)=>{const i=gMembers(g).findIndex(m=>m.id===id);const n=id==='yo'?'Tú':gName(g,id);return `<i class="gav" style="background:${id==='yo'?'#1F6F4A':gAvCol[(i<0?0:i)%gAvCol.length]}">${esc(n.slice(0,2).toUpperCase())}</i>`};
+function gFrase(g,p){
+  if(p.de==='yo')return `Tú le pagas a ${esc(gName(g,p.a))}`;
+  if(p.a==='yo')return `${esc(gName(g,p.de))} te paga`;
+  return `${esc(gName(g,p.de))} le paga a ${esc(gName(g,p.a))}`;
+}
+function gTextoConciliacion(g,pagos){
+  if(!pagos.length)return 'Estamos a mano.';
+  return 'Para quedar a mano: '+pagos.map(p=>`${p.de==='yo'?'yo le pago':gName(g,p.de)+' le paga'} ${fmt(p.monto)} a ${p.a==='yo'?'mí':gName(g,p.a)}`).join('; ')+'.';
+}
+function gCodigoHTML(g){
+  if(!cloudOn())return '';
+  if(g.cloud)return `<section class="gcode"><div><small>Código para invitar</small><b class="nums">${showCode(g.cloud.id)}</b>${g.cloud.lost?'<span style="color:var(--bad);font-size:13px">El grupo ya no existe en la nube.</span>':''}</div><div class="gcb"><button class="btn sm" data-a="copyCode" data-c="${g.cloud.id}">Copiar</button><button class="btn ghost sm" data-a="invitar" data-id="${g.id}">Invitar</button></div></section>`;
+  return `<section class="gcode"><div><small>Solo tú ves este grupo</small><b style="font-size:16px">Compártelo con un código</b></div><div class="gcb"><button class="btn sm" data-a="shareGrupo" data-id="${g.id}">Compartir</button></div></section>`;
+}
+function vGrupo(g){
+  const ms=g.miembros,ver=ui.verMiembro,tab=ui.sub.gtab||'cuentas';
+  const {pagos:sug,bruto,net}=gConciliar(g),yo=net.yo||0;
+  const nombres=ms.map(m=>esc(m.nombre)).join(', ');
+  const head=`<div><button class="back" data-a="grupoBack">‹ Grupos</button><header class="top"><div><h1>${esc(g.nombre)}</h1><p>${nombres||'Solo tú'}</p></div><span class="hb"><button class="plus more cfg" data-a="editGrupo" data-id="${g.id}" aria-label="Editar grupo"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></span></header></div>`;
+  const resumen=Math.abs(yo)<0.005?'Están a mano':yo>0?`Te deben ${fmt(yo)}`:`Debes ${fmt(-yo)}`;
+  const detalle=ms.length?ms.map(m=>{const b=balanceWith(g,m.id);return Math.abs(b)<0.005?null:`${esc(m.nombre)} ${fmt(Math.abs(b))}`}).filter(Boolean).join(' · '):'';
+  const hero=`<section class="ghero"><small>Contigo</small><div class="gbig ${yo>0.005?'pos':yo<-0.005?'neg':''}">${resumen}</div>${detalle?`<p>${detalle}</p>`:''}</section>`;
+  const acts=`<div class="gact"><button class="btn" data-a="gGasto" data-g="${g.id}">+ Agregar gasto</button><button class="btn ghost" data-a="addPago" data-g="${g.id}">Registrar pago</button></div>`;
+  const nuevos=msgNuevos(g);
+  const seg=`<div class="seg" role="group" aria-label="Secciones del grupo">${[['cuentas','Cuentas'],['gastos','Gastos'],['msgs','Mensajes'],['mas','Más']].map(([k,l])=>`<button type="button" data-a="gtab" data-v="${k}" aria-pressed="${tab===k}">${l}${k==='msgs'&&nuevos&&tab!=='msgs'?'<i class="gdot" aria-label="mensajes nuevos"></i>':''}</button>`).join('')}</div>`;
+  let body='';
+  if(tab==='cuentas'){
+    const filas=ms.map(m=>{
+      const b=balanceWith(g,m.id),ev=eventsWith(g,m.id),open=ver===m.id;
+      return `<div class="gper"><button class="grow" data-a="gPersona" data-g="${g.id}" data-m="${m.id}" aria-label="Opciones con ${esc(m.nombre)}">${gAv(g,m.id)}<span class="gt"><b>${esc(m.nombre)}</b><small>${ev.length===1?'1 movimiento':ev.length+' movimientos'}</small></span><span class="st ${b>0.005?'pos':b<-0.005?'neg':''}">${Math.abs(b)<0.005?'A mano':(b>0?'Te debe ':'Le debes ')+fmt(Math.abs(b))}</span></button>
+      ${open?`<div class="ghist">${ev.length?ev.slice().reverse().map(e=>`<div class="led"><span class="d">${dshort(e.fecha)}</span><span>${esc(e.desc)}<br><span class="d">${esc(e.det)}</span></span><span class="amt" style="color:${e.tipo==='pago'?'var(--good)':e.delta>0?'var(--ink)':'var(--bad)'}">${e.delta>0?'+':'−'}${fmt(Math.abs(e.delta))}</span><span class="run">Saldo ${Math.abs(e.run)<0.005?'a mano':fmt(e.run)}</span></div>`).join(''):'<div class="small muted">Aún no hay movimientos con esta persona.</div>'}<button class="link" data-a="gHist" data-g="${g.id}" data-m="${m.id}">Ocultar historial</button></div>`:''}</div>`;
+    }).join('');
+    const conc=sug.length?`<section class="gsug"><h2>Para quedar a mano<small>${sug.length} ${sug.length===1?'pago':'pagos'}</small></h2>${sug.map(p=>`<div class="gs"><span>${gAv(g,p.de)}</span><span class="gt"><b>${gFrase(g,p)}</b></span><span class="n">${fmt(p.monto)}</span><button class="btn sm" data-a="gPagoSug" data-g="${g.id}" data-de="${p.de}" data-para="${p.a}" data-monto="${p.monto}">Registrar</button></div>`).join('')}${bruto>sug.length?`<div class="small muted" style="margin-top:8px">Sumando las deudas entre todos, en lugar de ${bruto} pagos bastan ${sug.length}.</div>`:''}${g.cloud?`<div style="margin-top:10px"><button class="btn ghost sm" data-a="gConcMsg" data-g="${g.id}">Mandar al chat del grupo</button></div>`:''}</section>`:(ms.length?`<section class="gsug ok"><b>Todos están a mano</b><div class="small muted">No hay pagos pendientes en este grupo.</div></section>`:'');
+    body=`<section class="box" style="padding:6px 14px">${filas||'<div class="empty">Agrega personas al grupo para dividir gastos.</div>'}</section>${conc}`;
+  }else if(tab==='gastos'){
+    const lista=[...g.gastos.map(x=>({f:x.fecha,k:'g',x})),...g.pagos.map(p=>({f:p.fecha,k:'p',x:p}))].sort((a,b)=>a.f<b.f?1:a.f>b.f?-1:0);
+    body=`<section class="sect" style="margin-top:0">${lista.length?lista.map(({k,x})=>k==='g'?`<div class="row nochk">${rdate(x.fecha)}<button class="rmain" data-a="editGasto" data-g="${g.id}" data-id="${x.id}"><div class="rname">${esc(x.desc)}</div><div class="rsub">${x.pagador==='yo'?'Pagaste tú'+(x.pmedio&&medioName(x.pmedio)?' con '+esc(medioName(x.pmedio)):''):'Pagó '+esc(gName(g,x.pagador))} · ${Object.keys(x.partes).map(id=>`${esc(id==='yo'?'tú':gName(g,id))} ${fmt0(x.partes[id])}`).join(', ')}</div></button><div class="ramt">${fmt(x.monto)}</div>${g.cloud?`<div class="ract"><button class="link" data-a="msgRef" data-g="${g.id}" data-k="g" data-id="${x.id}">Comentar</button></div>`:''}</div>`:`<div class="row nochk">${rdate(x.fecha)}<div class="rmain"><div class="rname">${gFrase(g,x)}</div><div class="rsub"><span class="tag ok">Pago</span>${esc(x.nota||'')}</div></div><div class="ramt in">${fmt(x.monto)}</div><div class="ract"><button class="link" data-a="delPago" data-g="${g.id}" data-id="${x.id}">Quitar</button></div></div>`).join(''):'<div class="empty"><b>Sin gastos todavía</b>Toca "Agregar gasto" para registrar el primero.</div>'}</section>`;
+  }else if(tab==='msgs'){
+    body=gMensajesHTML(g);
+  }else{
+    body=`${gMetasHTML(g)}
+    <section class="box"><h2>Cobros programados<button class="link" data-a="addCargo" data-g="${g.id}">Agregar</button></h2>${(g.cargos||[]).length?g.cargos.map(c=>`<div class="kv"><span>${esc(gName(g,c.miembro))}: ${esc(c.concepto)}, día ${c.dia}</span><span><span class="n">${fmt(c.monto)}</span> <button class="btn ghost sm" data-a="editCargo" data-g="${g.id}" data-id="${c.id}">Editar</button></span></div>`).join(''):'<div class="small muted">Para rentas de cuarto u otros cobros que se repiten cada mes.</div>'}</section>
+    ${cloudOn()?`<section class="box"><h2>Compartir</h2>${g.cloud?`<div class="kv"><span>Código</span><span class="nums"><b>${showCode(g.cloud.id)}</b></span></div><div class="chips" style="margin-top:8px"><button class="btn sm" data-a="copyCode" data-c="${g.cloud.id}">Copiar</button><button class="btn ghost sm" data-a="invitar" data-id="${g.id}">Invitar</button><button class="btn ghost sm" data-a="syncGrupo" data-id="${g.id}">Actualizar</button></div>`:`<div class="small muted" style="margin-bottom:8px">Compártelo para que otros vean los gastos y se dejen mensajes.</div><button class="btn sm" data-a="shareGrupo" data-id="${g.id}">Compartir con un código</button>`}</section>`:''}
+    <section class="box"><button class="btn ghost sm" data-a="editGrupo" data-id="${g.id}">Editar grupo y personas</button></section>`;
+  }
+  return head+gCodigoHTML(g)+hero+acts+seg+body;
+}
+function gPersonaMenu(gid,mid){
+  const g=S.grupos.find(x=>x.id===gid),m=g&&g.miembros.find(x=>x.id===mid);if(!m)return;
+  const b=balanceWith(g,mid),it=(a,t,s)=>`<button data-a="${a}" data-g="${gid}" data-m="${mid}"><span><span class="t">${t}</span>${s?`<br><span class="s">${s}</span>`:''}</span>${ICON.chev}</button>`;
+  $('#modal').innerHTML=`<div class="scrim" data-a="closeModal"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(m.nombre)}"><div class="sheet-h"><h2>${esc(m.nombre)}</h2><button class="btn ghost sm" type="button" data-a="closeModal">Cerrar</button></div><p class="muted" style="margin:0 0 10px">${Math.abs(b)<0.005?'Están a mano.':b>0?`Te debe ${fmt(b)}.`:`Le debes ${fmt(-b)}.`}</p><div class="menu">${Math.abs(b)>=0.005?it('gSaldar',b>0?'Registrar que me pagó':'Registrar que le pagué',fmt(Math.abs(b))):''}${b>0.005&&g.cloud?it('gRecordar','Recordárselo en mensajes','Le mando un recado'):''}${it('gHist','Ver historial','Todo lo que hay entre ustedes')}</div></div>`;
+}
+
 /* ===== bienvenida y ejemplo ===== */
 function welcome(){
   const inv=INV&&CFG&&!AU?`<div class="invb"><b>Te invitaron a un grupo</b><span>Crea tu cuenta (1 minuto) y entras directo.</span><div class="acts"><button class="btn" data-a="signup">Crear cuenta y unirme</button><button class="btn ghost" data-a="login">Ya tengo cuenta</button></div></div>`:'';
@@ -3634,6 +3713,14 @@ function saveUI(){try{localStorage.setItem(UIKEY,JSON.stringify({tab:ui.tab,them
 
 /* ===== eventos ===== */
 const A={
+  gtab:el=>{ui.sub.gtab=el.dataset.v;render()},
+  gPersona:el=>gPersonaMenu(el.dataset.g,el.dataset.m),
+  gGasto:el=>editGasto(el.dataset.g),
+  gSaldar:el=>{closeModal();const g=S.grupos.find(x=>x.id===el.dataset.g),m=el.dataset.m,b=balanceWith(g,m);editPago(g.id,b>0?{de:m,a:'yo',monto:b}:{de:'yo',a:m,monto:-b})},
+  gRecordar:el=>{closeModal();ui.sub.gtab='msgs';A.msgRecordar(el)},
+  gHist:el=>{closeModal();ui.sub.gtab='cuentas';ui.verMiembro=ui.verMiembro===el.dataset.m?null:el.dataset.m;render()},
+  gPagoSug:el=>editPago(el.dataset.g,{de:el.dataset.de,a:el.dataset.para,monto:+el.dataset.monto}),
+  gConcMsg:el=>{const g=S.grupos.find(x=>x.id===el.dataset.g);if(!g||!g.cloud)return;const c=gConciliar(g);msgPost(g,'',gTextoConciliacion(g,c.pagos),'','Cuentas del grupo');persist();ui.sub.gtab='msgs';render();toast('Mandé las cuentas al chat')},
   tarCuadrar:el=>cuadrarTarjeta(el.dataset.id||ui.det),ctaCuadrar:el=>cuadrarCuenta(el.dataset.id||ui.det),stCuadraSaldo:()=>stCuadraSaldo(),
   wlAnalizar:()=>wlAnalizar(),wlConfirm:()=>wlConfirm(),wlCancel:()=>{WL=null;render()},
   habMes:el=>{const nowK=monthKey(todayISO()),k=shiftMonth(ui.habMes||nowK,+el.dataset.d);ui.habMes=k>nowK?nowK:k;render()},
@@ -3663,8 +3750,8 @@ const A={
   msgTodos:el=>{ui.msgAll=el.dataset.g;render()},
   msgQuitaRef:el=>{ui.msgRef[el.dataset.g]=null;render()},
   delMsg:el=>{const g=S.grupos.find(x=>x.id===el.dataset.g);if(!g)return;g.mensajes=(g.mensajes||[]).filter(m=>m.id!==el.dataset.id);persist();render()},
-  msgRef:el=>{const g=S.grupos.find(x=>x.id===el.dataset.g),x=g&&g.gastos.find(y=>y.id===el.dataset.id);if(!x)return;ui.msgRef=ui.msgRef||{};ui.msgDraft=ui.msgDraft||{};ui.msgRef[g.id]={ref:'g:'+x.id,txt:`${x.desc} · ${fmt(x.monto)}`};render();msgFocus()},
-  msgRecordar:el=>{const g=S.grupos.find(x=>x.id===el.dataset.g);if(!g)return;const m=g.miembros.find(x=>x.id===el.dataset.m);if(!m)return;const b=balanceWith(g,m.id);ui.msgPara=ui.msgPara||{};ui.msgDraft=ui.msgDraft||{};ui.msgPara[g.id]=m.id;ui.msgDraft[g.id]=`Hola ${m.nombre}, ¿me ayudas con los ${fmt(Math.abs(b))} pendientes? Gracias.`;render();msgFocus()},
+  msgRef:el=>{ui.sub.gtab='msgs';const g=S.grupos.find(x=>x.id===el.dataset.g),x=g&&g.gastos.find(y=>y.id===el.dataset.id);if(!x)return;ui.msgRef=ui.msgRef||{};ui.msgDraft=ui.msgDraft||{};ui.msgRef[g.id]={ref:'g:'+x.id,txt:`${x.desc} · ${fmt(x.monto)}`};render();msgFocus()},
+  msgRecordar:el=>{ui.sub.gtab='msgs';const g=S.grupos.find(x=>x.id===el.dataset.g);if(!g)return;const m=g.miembros.find(x=>x.id===el.dataset.m);if(!m)return;const b=balanceWith(g,m.id);ui.msgPara=ui.msgPara||{};ui.msgDraft=ui.msgDraft||{};ui.msgPara[g.id]=m.id;ui.msgDraft[g.id]=`Hola ${m.nombre}, ¿me ayudas con los ${fmt(Math.abs(b))} pendientes? Gracias.`;render();msgFocus()},
   verMiembro:el=>{ui.verMiembro=ui.verMiembro===el.dataset.m?null:el.dataset.m;render()},
   addGasto:el=>editGasto(el.dataset.g),editGasto:el=>editGasto(el.dataset.g,el.dataset.id),
   addPago:el=>editPago(el.dataset.g),delPago:el=>delPago(el.dataset.g,el.dataset.id),
