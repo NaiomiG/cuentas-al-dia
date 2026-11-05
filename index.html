@@ -2160,7 +2160,7 @@ function confirmImport(){
   commit(`${n} movimientos guardados${prog?` (${prog} marcaron un pago programado)`:''}`);
 }
 async function stHandleFile(file){
-  ST.busy=true;ST.msg='';ST.file=file.name;render();
+  ST.busy=true;ST.msg='';ST.file=file.name;ST.diag={tipo:(file.name.split('.').pop()||'?').toLowerCase().slice(0,5),kb:Math.round((file.size||0)/1024)};render();
   try{
     const name=file.name.toLowerCase();
     if(name.endsWith('.csv')||file.type==='text/csv'){
@@ -2171,14 +2171,16 @@ async function stHandleFile(file){
       const p=parseStatement(lines);ST.rows=p.rows;ST.meta=p.meta;
     }else{
       const r=await readPdfLines(file,ST.pw);
-      ST.doc=r.doc;ST.needPw=false;
+      ST.doc=r.doc;ST.needPw=false;Object.assign(ST.diag,{pag:r.pages,chars:r.chars,lineas:r.lines.length,ilegible:!!textoIlegible(r.lines)});
       if(r.chars<40*r.pages||textoIlegible(r.lines)){ST.rows=[];ST.scanned=true;ST.msg=r.chars<40*r.pages?'Este PDF no tiene texto que se pueda leer en tu dispositivo (parece una imagen escaneada).':'El texto de este PDF viene codificado y no se puede leer directo. Puedo leerlo como imagen en tu dispositivo.';ST.msgTone='warn'}
       else{const p=parseStatement(r.lines);ST.rows=p.rows;ST.meta=p.meta;ST.scanned=false}
     }
+    Object.assign(ST.diag,{banco:(ST.meta&&ST.meta.banco)||'no detectado',filas:(ST.rows||[]).length,msi:((ST.meta&&ST.meta.msi)||[]).length});
     if(ST.rows.length){annotate();ST.stage='revisar';ST.msg=''}
     else if(!ST.scanned&&tieneDatosTarjeta()){ST.stage='revisar';ST.msg=''}
     else if(!ST.scanned){ST.msg='No encontré movimientos en este archivo. Prueba pegando el texto del estado o con un CSV.';ST.msgTone='warn'}
   }catch(e){
+    if(ST.diag)ST.diag.error=String((e&&(e.name||'')+' '+(e&&e.message||''))||'').replace(/\d{5,}/g,'#').slice(0,90);
     if(e&&(e.name==='PasswordException'||/password/i.test(e.message||''))){ST.needPw=true;ST.msg=ST.pw?'La contraseña no es correcta.':'Este PDF tiene contraseña. Escríbela para abrirlo aquí. No se guarda.';ST.msgTone='warn';ST.pendingFile=file}
     else if(e&&e.message==='nolib'){ST.msg='No se pudo cargar el lector de PDF. Pega el texto del estado o sube un CSV.';ST.msgTone='bad'}
     else{ST.msg='No pude leer ese archivo. Prueba con otro PDF, un CSV o pegando el texto.';ST.msgTone='bad'}
@@ -2250,6 +2252,23 @@ function aplicarMeta(){
   if(m.fechaLimite&&m.fechaCorte)c.diasPago=Math.max(1,dnum(m.fechaLimite)-dnum(m.fechaCorte));
   persist();toast('Tarjeta actualizada con los datos del estado'+(aj?` (ajuste de ${fmt(Math.abs(aj))} en el saldo)`:'')+(ms&&(ms.nuevos||ms.ajust)?` (${ms.nuevos?ms.nuevos+' compra'+(ms.nuevos>1?'s':'')+' a meses nueva'+(ms.nuevos>1?'s':''):''}${ms.nuevos&&ms.ajust?' y ':''}${ms.ajust?ms.ajust+' actualizada'+(ms.ajust>1?'s':''):''})`:''));render();
 }
+
+/* ===== ayuda por WhatsApp (sin datos personales) ===== */
+const WA_SOPORTE='525574440989';/* número con lada, solo dígitos, ej. 5255XXXXXXXX. Vacío = WhatsApp deja elegir contacto */
+function waLink(t){return`https://wa.me/${WA_SOPORTE}?text=${encodeURIComponent(t)}`}
+function diagTexto(){
+  const d=(typeof ST!=='undefined'&&ST&&ST.diag)||{},ua=navigator.userAgent;
+  const dev=/iPhone|iPad|iPod/.test(ua)?'iPhone/iPad':/Android/.test(ua)?'Android':'Computadora';
+  const nav=/CriOS|Chrome/.test(ua)?'Chrome':/FxiOS|Firefox/.test(ua)?'Firefox':/Safari/.test(ua)?'Safari':'otro';
+  const L=['Hola, no pude cargar mi estado de cuenta en Cuentas al Día.','',`Dispositivo: ${dev} (${nav})`,`Archivo: ${d.tipo||'?'}, ${d.kb!=null?d.kb+' KB':'?'}${d.pag?`, ${d.pag} pág.`:''}`,`Banco detectado: ${d.banco||'no llegó a leerse'}`];
+  if(d.lineas!=null)L.push(`Texto leído: ${d.lineas} líneas${d.ilegible?' (ilegible)':''}`);
+  if(d.filas!=null)L.push(`Movimientos encontrados: ${d.filas}, compras a meses: ${d.msi||0}`);
+  if(d.error)L.push(`Error: ${d.error}`);
+  if(ST&&ST.msg)L.push(`Mensaje: ${ST.msg.slice(0,120)}`);
+  L.push('','(Sin montos ni datos de cuenta. Si quieres, te mando el PDF con nombre, RFC y números tapados.)');
+  return L.join('\n');
+}
+function waAbrir(t){window.open(waLink(t),'_blank','noopener')}
 /* ===== arranque guiado ===== */
 let OB=null;
 const OBI={
@@ -2839,7 +2858,7 @@ function vMas(){
   return `<header class="top"><h1>Más</h1></header>
   ${grp('Anotar y revisar',go('mov','Movimientos y estados de cuenta','Busca lo que gastaste o sube un estado para completar lo que olvidaste')+go('wallet','Importar nota de Wallet','Pega tus compras de Notas y guárdalas con su hora'))}
   ${grp('Planear',go('metas','Metas','Un viaje, una compra o ahorrar en grupo, y si te alcanza')+go('ahorro','Ahorro','Tus apartados y cuánto crecerían')+go('alertas','Alertas',alertas().length?`${alertas().length} por revisar`:'Avisos de liquidez con tus propias reglas'))}
-  ${grp('Tu cuenta',go('ajustes','Ajustes','Tu nombre, saldo, regla de presupuesto y respaldo'))}
+  ${grp('Tu cuenta',go('ajustes','Ajustes','Tu nombre, saldo, regla de presupuesto y respaldo')+`<button class="go" data-a="waAyuda"><span><span class="t">Ayuda por WhatsApp</span><br><span class="s">Cuéntanos qué no funcionó o qué te gustaría que hiciera</span></span>${ICON.chev}</button>`)}
   <p class="small muted" style="margin:18px 0 0">¿Buscas Panorama, Hábitos, compras a meses o el plan de deudas? Están en <button class="link" data-a="tab" data-v="resumen">Resumen</button>.</p>`;
 }
 
@@ -2896,7 +2915,7 @@ function vEstado(){
     <div class="fld" style="margin-bottom:14px"><label for="st_cuenta">¿De qué cuenta es el estado?</label><select id="st_cuenta" data-st="cuenta">${cuentas.map(([k,l])=>`<option value="${esc(k)}" ${ST.cuenta===k?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
     <label class="drop" id="drop" style="display:block;cursor:pointer"><b style="display:block;color:var(--ink);font:700 17px var(--f-display)">${ST.busy?'Leyendo…':'Elige el PDF o el CSV'}</b><span>o arrástralo aquí</span><input id="stfile" type="file" accept=".pdf,.csv,.txt,application/pdf,text/csv" hidden></label>
     ${ST.needPw?`<div class="fld" style="margin-top:12px"><label for="st_pw">Contraseña del PDF</label><input id="st_pw" type="password" data-st="pw" value="${esc(ST.pw)}" autocomplete="off"></div><button class="btn sm" style="margin-top:8px" data-a="stRetry">Abrir con contraseña</button>`:''}
-    ${ST.msg?`<div class="alert ${ST.msgTone==='bad'?'bad':ST.msgTone==='warn'?'warn':'info'}" style="margin-top:12px">${esc(ST.msg)}</div>`:''}
+    ${ST.msg?`<div class="alert ${ST.msgTone==='bad'?'bad':ST.msgTone==='warn'?'warn':'info'}" style="margin-top:12px">${esc(ST.msg)}</div>${ST.msgTone==='bad'||ST.msgTone==='warn'||ST.scanned?`<div class="hacts" style="margin-top:8px"><button class="btn" data-a="waDiag">Mandar por WhatsApp</button><button class="btn ghost" data-a="copyDiag">Copiar detalles</button></div><p class="small muted">Solo se envían datos técnicos (banco, tamaño, error). Nada de montos ni cuentas.</p>`:''}`:''}
     ${ST.scanned&&ST.doc?`<div class="box" style="margin-top:12px"><h2 style="font-size:16px">Es un PDF escaneado</h2><p class="small muted" style="margin:0 0 10px">Puedo leerlo aquí mismo, en tu dispositivo, con reconocimiento de texto. No se envía a ningún lado. La primera vez descarga el lector (unos 10 MB) y puede tardar un par de minutos.</p><button class="btn sm" data-a="stOcr" ${ST.busy?'disabled':''}>Leer en mi dispositivo</button></div>`:''}
     ${ST.scanned&&ST.doc&&window.claude?`<div class="box" style="margin-top:12px"><h2 style="font-size:16px">¿Es un PDF escaneado?</h2><p class="small muted" style="margin:0 0 10px">Puedo pedirle a Claude que lo lea. Para eso las primeras páginas se envían como imagen a Claude. Si prefieres que no salgan de tu dispositivo, usa un CSV o pega el texto.</p><label class="chk-l" style="margin-bottom:10px"><input type="checkbox" data-st="consent" ${ST.consent?'checked':''}> Entiendo que las páginas se envían a Claude</label><button class="btn sm" data-a="stClaude" ${ST.consent&&!ST.busy?'':'disabled'}>Leer con Claude</button></div>`:''}
   </section>
@@ -3837,6 +3856,7 @@ const A={
   gtab:el=>{ui.sub.gtab=el.dataset.v;render()},
   gPersona:el=>gPersonaMenu(el.dataset.g,el.dataset.m),
   gGasto:el=>editGasto(el.dataset.g),
+  waDiag:()=>waAbrir(diagTexto()),copyDiag:()=>{const t=diagTexto();(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Detalles copiados'),()=>toast('No pude copiar, usa WhatsApp'))},waAyuda:()=>waAbrir('Hola, tengo una duda o sugerencia sobre Cuentas al Día:\n\n'),
   gSaldar:el=>{closeModal();const g=S.grupos.find(x=>x.id===el.dataset.g),m=el.dataset.m,b=balanceWith(g,m);editPago(g.id,b>0?{de:m,a:'yo',monto:b}:{de:'yo',a:m,monto:-b})},
   gRecordar:el=>{closeModal();ui.sub.gtab='msgs';A.msgRecordar(el)},
   gHist:el=>{closeModal();ui.sub.gtab='cuentas';ui.verMiembro=ui.verMiembro===el.dataset.m?null:el.dataset.m;render()},
