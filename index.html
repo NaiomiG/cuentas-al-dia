@@ -767,16 +767,21 @@ function editMov(pre){
       else{const c=cardOf(v.metodo);c.balance=(+c.balance||0)+m.monto;if(v.paypal)m.paypal=true;const n=Math.round(num(v.meses));if(n>1){m.msiId=uid();c.msi.push({id:m.msiId,concepto:m.desc,total:m.monto,meses:n,remaining:n})}}
       S.movs.unshift(m);commit('Movimiento registrado');}});
 }
+/* sign=1 quita el efecto de un movimiento en saldos; sign=-1 lo vuelve a aplicar */
+function movRevert(m,sign=1){
+  if(m.tipo==='transfer'){moveCash(sign*m.monto,m.from);moveCash(-sign*m.monto,m.to);return}
+  if(m.fuente==='estado'){
+    moveCash(-sign*(m.cashDelta||0),m.cuenta);
+    if(m.cardDelta){const c=cardOf(m.metodo);if(c)c.balance=r2(Math.max(0,(+c.balance||0)-sign*m.cardDelta))}
+  }else{
+    if(!m.noCash){if(m.tipo==='ingreso')moveCash(-sign*m.monto,m.cuenta);else if(m.metodo==='cuenta')moveCash(sign*m.monto,m.cuenta)}
+    if(m.tipo==='egreso'&&m.metodo!=='cuenta'){const c=cardOf(m.metodo);if(c)c.balance=r2(Math.max(0,(+c.balance||0)-sign*m.monto))}
+  }
+}
 function delMov(id){
   const m=S.movs.find(x=>x.id===id);if(!m||!(m.manual||m.fuente==='estado'))return;
-  if(m.tipo==='transfer'){moveCash(m.monto,m.from);moveCash(-m.monto,m.to)}
-  else if(m.fuente==='estado'){
-    moveCash(-(m.cashDelta||0),m.cuenta);
-    if(m.cardDelta){const c=cardOf(m.metodo);if(c)c.balance=Math.max(0,(+c.balance||0)-m.cardDelta)}
-  }else{
-    if(!m.noCash){if(m.tipo==='ingreso')moveCash(-m.monto,m.cuenta);else if(m.metodo==='cuenta')moveCash(m.monto,m.cuenta)}
-    if(m.tipo==='egreso'&&m.metodo!=='cuenta'){const c=cardOf(m.metodo);if(c){c.balance=Math.max(0,(+c.balance||0)-m.monto);if(m.msiId)c.msi=c.msi.filter(p=>p.id!==m.msiId)}}
-  }
+  movRevert(m);
+  if(m.msiId&&m.tipo==='egreso'&&m.metodo!=='cuenta'&&m.fuente!=='estado'){const c=cardOf(m.metodo);if(c&&c.msi)c.msi=c.msi.filter(p=>p.id!==m.msiId)}
   S.movs=S.movs.filter(x=>x.id!==id);commit('Movimiento eliminado');
 }
 function askPay(i){
@@ -2085,6 +2090,26 @@ const titleCase=s=>{const c=s.replace(/\b(DOMICILIACION|DOMICILIADO|CARGO|RECURR
 const stAcc=()=>String(ST&&ST.cuenta||'').startsWith('acc:')?ST.cuenta.slice(4):(defAcc()||{}).id;
 const stMedio=()=>isCardMedio(ST.cuenta)?ST.cuenta:stAcc();
 function newST(){return{cuenta:'cuenta',rows:[],meta:{},stage:'elegir',msg:'',msgTone:'info',busy:false,needPw:false,file:null,doc:null,actualizarSaldo:false,pend:{},domis:[],missing:[],consent:false,pw:'',pasteText:''}}
+/* ===== sustituir el periodo del estado por lo que dice el banco ===== */
+function reemplazoPeriodo(){
+  const ds=(ST.rows||[]).map(r=>r.fecha).sort();if(!ds.length)return null;
+  const per=ST.meta&&ST.meta.periodo;return per&&per[0]&&per[1]?[per[0],per[1]]:[ds[0],ds[ds.length-1]];
+}
+function reemplazoCandidatos(){
+  const per=reemplazoPeriodo();if(!per)return[];
+  const isCard=isCardMedio(ST.cuenta),acct=stAcc(),def=(defAcc()||{}).id;
+  return S.movs.filter(m=>m.fecha>=per[0]&&m.fecha<=per[1]&&!m.grupoId&&!m.key&&!m.msiId&&m.tipo!=='transfer'&&m.fuente!=='wallet'&&(m.manual||m.fuente==='estado')&&
+    (isCard?m.metodo===ST.cuenta:(m.metodo==='cuenta'&&(m.cuenta===acct||(!m.cuenta&&acct===def)))));
+}
+function deshacerReemplazo(){
+  const u=S.ultReemplazo;if(!u)return;
+  const ids=new Set(u.nuevos||[]);
+  S.movs.filter(m=>ids.has(m.id)).forEach(m=>movRevert(m));
+  S.movs=S.movs.filter(m=>!ids.has(m.id));
+  (u.quitados||[]).forEach(m=>{movRevert(m,-1);S.movs.push(m)});
+  S.movs.sort((a,b)=>a.fecha<b.fecha?1:a.fecha>b.fecha?-1:0);
+  S.ultReemplazo=null;commit('Reemplazo deshecho: volvieron tus movimientos');
+}
 function annotate(){
   const rows=ST.rows;ST.domis=[];ST.missing=[];if(!rows.length)return;
   const isCard=isCardMedio(ST.cuenta);
@@ -2092,11 +2117,12 @@ function annotate(){
   const ds=rows.map(r=>r.fecha).sort(),lo=ds[0],hi=ds[ds.length-1];
   const pend=instances(addDays(lo,-10),addDays(hi,10)).filter(i=>!isDone(i));
   ST.pend={};pend.forEach(i=>ST.pend[i.key]=i);const used=new Set();
+  const R=ST.reemplazar?new Set(reemplazoCandidatos().map(m=>m.id)):null;
   for(const r of rows){
     r.cat=r.cat||suggestCat(r.desc,r.tipo);r.flag='nuevo';r.ref=null;r.inc=true;r.sig=sigOf(r);
-    if(S.stmtSeen[r.sig]){r.flag='visto';r.inc=false;continue}
+    if(S.stmtSeen[r.sig]&&!R){r.flag='visto';r.inc=false;continue}
     if(isCard&&r.tipo==='abono'){r.flag='pagoTarjeta';r.inc=false;continue}
-    const mv=S.movs.find(m=>Math.abs(m.monto-r.monto)<0.01&&(m.tipo==='ingreso')===(r.tipo==='abono')&&Math.abs(dnum(m.fecha)-dnum(r.fecha))<=3);
+    const mv=S.movs.find(m=>!(R&&R.has(m.id))&&Math.abs(m.monto-r.monto)<0.01&&(m.tipo==='ingreso')===(r.tipo==='abono')&&Math.abs(dnum(m.fecha)-dnum(r.fecha))<=3);
     if(mv){r.flag='registrado';r.inc=false;continue}
     let best=null;
     for(const i of pend){
@@ -2138,18 +2164,19 @@ function annotate(){
 function confirmImport(){
   const inc=ST.rows.filter(r=>r.inc&&r.cat!=='Ignorar');
   if(!inc.length){toast('No hay movimientos marcados para guardar');return}
-  const isCard=isCardMedio(ST.cuenta),card=isCard?cardOf(ST.cuenta):null;let n=0,prog=0;
+  const isCard=isCardMedio(ST.cuenta),card=isCard?cardOf(ST.cuenta):null;let n=0,prog=0,quitados=0;const act=ST.actualizarSaldo||ST.reemplazar,nuevos=[];
+  if(ST.reemplazar){const R=reemplazoCandidatos(),ids=new Set(R.map(m=>m.id));R.forEach(m=>movRevert(m));S.movs=S.movs.filter(m=>!ids.has(m.id));quitados=R.length;S.ultReemplazo={fecha:todayISO(),quitados:R,nuevos}}
   for(const r of inc){
     const inst=r.ref?ST.pend[r.ref]:null;
-    if(inst&&!S.paid[inst.key]){payInst(inst,{monto:r.monto,fecha:r.fecha,noCash:!ST.actualizarSaldo});prog++}
+    if(inst&&!S.paid[inst.key]){payInst(inst,{monto:r.monto,fecha:r.fecha,noCash:!act});prog++}
     else{
       const m={id:uid(),fecha:r.fecha,tipo:r.tipo==='abono'?'ingreso':'egreso',monto:r.monto,desc:r.desc,cat:r.tipo==='abono'?'Ingreso':r.cat,metodo:isCard?ST.cuenta:'cuenta',fuente:'estado',noCash:true,cashDelta:0,cardDelta:0};
       if(/\bPAYPAL\b/i.test(r.desc))m.paypal=true;
-      if(ST.actualizarSaldo){
+      if(act){
         if(isCard&&card){card.balance=(+card.balance||0)+(r.tipo==='abono'?-r.monto:r.monto);m.cardDelta=r.tipo==='abono'?-r.monto:r.monto}
         else if(!isCard){const d=r.tipo==='abono'?r.monto:-r.monto;m.cuenta=moveCash(d,stAcc());m.cashDelta=d}
       }
-      S.movs.unshift(m);
+      S.movs.unshift(m);nuevos.push(m.id);
     }
     S.stmtSeen[r.sig]=1;n++;
     if(r.tipo==='cargo'){const k=normKey(r.desc);if(k){const h=S.stmtHist[k]||(S.stmtHist[k]={meses:[],monto:0,n:0});const mk=monthKey(r.fecha);if(!h.meses.includes(mk))h.meses.push(mk);h.meses=h.meses.slice(-12);h.monto=r.monto;h.n++}}
@@ -2157,7 +2184,7 @@ function confirmImport(){
   ST.rows.filter(r=>!r.inc&&r.flag==='registrado').forEach(r=>{S.stmtSeen[r.sig]=1});
   S.movs.sort((a,b)=>a.fecha<b.fecha?1:a.fecha>b.fecha?-1:0);
   ST=newST();ui.sub.mov='lista';
-  commit(`${n} movimientos guardados${prog?` (${prog} marcaron un pago programado)`:''}`);
+  commit(`${n} movimientos guardados${quitados?` y ${quitados} tuyos del periodo sustituidos`:''}${prog?` (${prog} marcaron un pago programado)`:''}`);
 }
 async function stHandleFile(file){
   ST.busy=true;ST.msg='';ST.file=file.name;ST.diag={tipo:(file.name.split('.').pop()||'?').toLowerCase().slice(0,5),kb:Math.round((file.size||0)/1024)};render();
@@ -2176,7 +2203,7 @@ async function stHandleFile(file){
       else{const p=parseStatement(r.lines);ST.rows=p.rows;ST.meta=p.meta;ST.scanned=false}
     }
     Object.assign(ST.diag,{banco:(ST.meta&&ST.meta.banco)||'no detectado',filas:(ST.rows||[]).length,msi:((ST.meta&&ST.meta.msi)||[]).length});
-    if(ST.rows.length){annotate();ST.stage='revisar';ST.msg=''}
+    if(ST.rows.length){ST.reemplazar=ST.rows.length>=3;annotate();ST.stage='revisar';ST.msg=''}
     else if(!ST.scanned&&tieneDatosTarjeta()){ST.stage='revisar';ST.msg=''}
     else if(!ST.scanned){ST.msg='No encontré movimientos en este archivo. Prueba pegando el texto del estado o con un CSV.';ST.msgTone='warn'}
   }catch(e){
@@ -2932,6 +2959,7 @@ function vEstado(){
     <div class="fld" style="margin-bottom:14px"><label for="st_cuenta">¿De qué cuenta es el estado?</label><select id="st_cuenta" data-st="cuenta">${cuentas.map(([k,l])=>`<option value="${esc(k)}" ${ST.cuenta===k?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
     <label class="drop" id="drop" style="display:block;cursor:pointer"><b style="display:block;color:var(--ink);font:700 17px var(--f-display)">${ST.busy?'Leyendo…':'Elige el PDF o el CSV'}</b><span>o arrástralo aquí</span><input id="stfile" type="file" accept=".pdf,.csv,.txt,application/pdf,text/csv" hidden></label>
     ${ST.needPw?`<div class="fld" style="margin-top:12px"><label for="st_pw">Contraseña del PDF</label><input id="st_pw" type="password" data-st="pw" value="${esc(ST.pw)}" autocomplete="off"></div><button class="btn sm" style="margin-top:8px" data-a="stRetry">Abrir con contraseña</button>`:''}
+    ${S.ultReemplazo&&(S.ultReemplazo.quitados||[]).length+(S.ultReemplazo.nuevos||[]).length?`<div class="box" style="margin-top:12px"><div class="small">Último reemplazo (${dshort(S.ultReemplazo.fecha)}): se quitaron ${(S.ultReemplazo.quitados||[]).length} movimientos tuyos y se guardaron ${(S.ultReemplazo.nuevos||[]).length} del estado.</div><button class="btn ghost sm" style="margin-top:8px" data-a="deshacerReemplazo">Deshacer el reemplazo</button></div>`:''}
     ${ST.msg?`<div class="alert ${ST.msgTone==='bad'?'bad':ST.msgTone==='warn'?'warn':'info'}" style="margin-top:12px">${esc(ST.msg)}</div>${ST.msgTone==='bad'||ST.msgTone==='warn'||ST.scanned?`<div class="hacts" style="margin-top:8px"><button class="btn" data-a="waDiag">Mandar por WhatsApp</button><button class="btn ghost" data-a="copyDiag">Copiar detalles</button></div><p class="small muted">Solo se envían datos técnicos (banco, tamaño, error). Nada de montos ni cuentas.</p>`:''}`:''}
     ${ST.scanned&&ST.doc?`<div class="box" style="margin-top:12px"><h2 style="font-size:16px">Es un PDF escaneado</h2><p class="small muted" style="margin:0 0 10px">Puedo leerlo aquí mismo, en tu dispositivo, con reconocimiento de texto. No se envía a ningún lado. La primera vez descarga el lector (unos 10 MB) y puede tardar un par de minutos.</p><button class="btn sm" data-a="stOcr" ${ST.busy?'disabled':''}>Leer en mi dispositivo</button></div>`:''}
     ${ST.scanned&&ST.doc&&window.claude?`<div class="box" style="margin-top:12px"><h2 style="font-size:16px">¿Es un PDF escaneado?</h2><p class="small muted" style="margin:0 0 10px">Puedo pedirle a Claude que lo lea. Para eso las primeras páginas se envían como imagen a Claude. Si prefieres que no salgan de tu dispositivo, usa un CSV o pega el texto.</p><label class="chk-l" style="margin-bottom:10px"><input type="checkbox" data-st="consent" ${ST.consent?'checked':''}> Entiendo que las páginas se envían a Claude</label><button class="btn sm" data-a="stClaude" ${ST.consent&&!ST.busy?'':'disabled'}>Leer con Claude</button></div>`:''}
@@ -2953,7 +2981,8 @@ function vRevision(){
   ${ST.missing.length?`<div class="alert warn" style="margin-bottom:14px"><b>Domiciliados que no vi en este estado:</b> ${ST.missing.map(m=>`${esc(m.item.nombre)} (esperado el ${dshort(m.date)})`).join(', ')}. Puede que se cobren en otra cuenta o que ya no estén activos.</div>`:''}
   ${ST.domis.length?`<section style="margin-bottom:14px"><h2>Posibles domiciliaciones<small>cobros que parecen automáticos</small></h2>${ST.domis.map((d,i)=>`<div class="row nochk"><div class="rmain" style="grid-column:1 / 3"><div class="rname">${esc(d.nombre)}</div><div class="rsub">${d.why.map(esc).join('. ')}.${d.existing?` Ya lo tienes como "${esc(d.exNombre)}"${d.exDom?' y está marcado como domiciliado':''}.`:''}</div></div><div class="ramt">${fmt(d.monto)}</div><div class="ract">${d.existing?(d.exDom?'<span class="pill good">Ya registrado</span>':`<button class="btn ghost sm" data-a="domiMarcar" data-i="${i}">Marcar como domiciliado</button>`):`<button class="btn sm" data-a="domiAgregar" data-i="${i}">Agregar a Pagos</button>`}</div></div>`).join('')}</section>`:''}
   <section><h2>Movimientos del estado<small>${rows.length} encontrados</small></h2><div class="tbl"><table><thead><tr><th>Guardar</th><th>Fecha</th><th>Descripción</th><th class="r">Monto</th><th>Categoría</th><th>Estado</th></tr></thead><tbody>${rows.map(r=>`<tr><td><input type="checkbox" data-r="${r.id}" data-rf="inc" ${r.inc?'checked':''} aria-label="Guardar ${esc(r.desc)}"></td><td>${dshort(r.fecha)}</td><td><input type="text" data-r="${r.id}" data-rf="desc" value="${esc(r.desc)}" aria-label="Descripción"></td><td class="r n" style="color:${r.tipo==='abono'?'var(--good)':'inherit'}">${r.tipo==='abono'?'+':'−'}${fmt(r.monto)}</td><td><select data-r="${r.id}" data-rf="cat" aria-label="Categoría">${catOptsRow(r)}</select></td><td>${flagPill(r)}</td></tr>`).join('')}</tbody></table></div></section>
-  <div class="box" style="margin-top:16px"><label class="chk-l"><input type="checkbox" data-st="actualizarSaldo" ${ST.actualizarSaldo?'checked':''}> Actualizar ${isCard?'el saldo de la tarjeta':'mi saldo disponible'} con estos movimientos</label><div class="small muted" style="margin:6px 0 12px">Déjalo apagado si ya cuadraste tu saldo con el banco. Prende solo si los movimientos son posteriores a la última vez que lo actualizaste.</div><div class="chips"><button class="btn" data-a="stConfirm">Guardar ${inc} movimientos</button><button class="btn ghost" data-a="stCancel">Cancelar</button></div></div>`;
+  ${(()=>{const R=reemplazoCandidatos(),per=reemplazoPeriodo(),tot=R.reduce((x,m)=>x+(+m.monto||0),0);return `<div class="box" style="margin-top:16px"><label class="chk-l"><input type="checkbox" data-st="reemplazar" ${ST.reemplazar?'checked':''}> Sustituir lo que anoté en este periodo por lo del estado</label><div class="small muted" style="margin:6px 0">${ST.reemplazar?(R.length?`Se quitarán <b>${R.length}</b> movimientos que anotaste del ${dshort(per[0])} al ${dshort(per[1])} (${fmt(tot)}) y se guardarán los del estado. Así se corrigen montos mal anotados y no se duplica nada. No se tocan pagos programados, de grupos, compras a meses ni notas de Wallet.`:'No tienes nada anotado en ese periodo: solo se guardan los del estado.'):'Apagado: se agregan solo los que no encuentre ya anotados.'}</div>${ST.reemplazar&&R.length?`<details><summary class="small">Ver lo que se quitaría</summary>${R.slice(0,30).map(m=>`<div class="kv"><span>${dshort(m.fecha)} · ${esc(m.desc||m.cat||'')}</span><span class="n">${fmt(m.monto)}</span></div>`).join('')}${R.length>30?`<div class="small muted">y ${R.length-30} más</div>`:''}</details>`:''}</div>`})()}
+  <div class="box" style="margin-top:16px"><label class="chk-l"><input type="checkbox" data-st="actualizarSaldo" ${ST.actualizarSaldo||ST.reemplazar?'checked':''} ${ST.reemplazar?'disabled':''}> Actualizar ${isCard?'el saldo de la tarjeta':'mi saldo disponible'} con estos movimientos</label><div class="small muted" style="margin:6px 0 12px">Déjalo apagado si ya cuadraste tu saldo con el banco. Prende solo si los movimientos son posteriores a la última vez que lo actualizaste.</div><div class="chips"><button class="btn" data-a="stConfirm">Guardar ${inc} movimientos</button><button class="btn ghost" data-a="stCancel">Cancelar</button></div></div>`;
 }
 
 function vGrupos(){
@@ -3873,7 +3902,7 @@ const A={
   gtab:el=>{ui.sub.gtab=el.dataset.v;render()},
   gPersona:el=>gPersonaMenu(el.dataset.g,el.dataset.m),
   gGasto:el=>editGasto(el.dataset.g),
-  waDiag:()=>waAbrir(diagTexto()),waCtx:b=>waAbrir(waCtxTexto(b.dataset.ctx||'',b.dataset.msg||'')),copyDiag:()=>{const t=diagTexto();(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Detalles copiados'),()=>toast('No pude copiar, usa WhatsApp'))},waAyuda:()=>waAbrir('Hola, tengo una duda o sugerencia sobre Cuentas al Día:\n\n'),
+  deshacerReemplazo:()=>deshacerReemplazo(),waDiag:()=>waAbrir(diagTexto()),waCtx:b=>waAbrir(waCtxTexto(b.dataset.ctx||'',b.dataset.msg||'')),copyDiag:()=>{const t=diagTexto();(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Detalles copiados'),()=>toast('No pude copiar, usa WhatsApp'))},waAyuda:()=>waAbrir('Hola, tengo una duda o sugerencia sobre Cuentas al Día:\n\n'),
   gSaldar:el=>{closeModal();const g=S.grupos.find(x=>x.id===el.dataset.g),m=el.dataset.m,b=balanceWith(g,m);editPago(g.id,b>0?{de:m,a:'yo',monto:b}:{de:'yo',a:m,monto:-b})},
   gRecordar:el=>{closeModal();ui.sub.gtab='msgs';A.msgRecordar(el)},
   gHist:el=>{closeModal();ui.sub.gtab='cuentas';ui.verMiembro=ui.verMiembro===el.dataset.m?null:el.dataset.m;render()},
@@ -4015,7 +4044,7 @@ document.addEventListener('change',e=>{
   if(el.dataset.r&&ST){const r=ST.rows.find(x=>x.id===el.dataset.r);if(r&&el.dataset.rf==='inc'){r.inc=el.checked;render()}else if(r&&el.dataset.rf==='cat'){r.cat=el.value;render()}return}
   if(el.dataset.st&&ST){
     if(el.dataset.st==='cuenta'){ST.cuenta=el.value}
-    else if(el.type==='checkbox'){ST[el.dataset.st]=el.checked;render()}
+    else if(el.type==='checkbox'){ST[el.dataset.st]=el.checked;if(el.dataset.st==='reemplazar'){const keep=ST.rows.map(r=>({id:r.id,cat:r.cat,desc:r.desc}));annotate();ST.rows.forEach(r=>{const k=keep.find(x=>x.id===r.id);if(k){r.cat=k.cat||r.cat;r.desc=k.desc}})}render()}
     return}
   if(el.id==='stfile'&&el.files[0]){stHandleFile(el.files[0]);return}
   if(el.id==='impf'&&el.files[0]){const r=new FileReader();r.onload=()=>doImport(String(r.result));r.readAsText(el.files[0]);return}
