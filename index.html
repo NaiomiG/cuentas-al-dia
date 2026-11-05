@@ -1182,7 +1182,7 @@ function editGasto(gid,xid){
 function revertPago(p){moveCash(-(p.cashDelta||0),p.cuentaId);if(p.movId)S.movs=S.movs.filter(m=>m.id!==p.movId)}
 function editPago(gid,pre){
   const g=S.grupos.find(x=>x.id===gid),ms=gMembers(g);
-  const v={de:'yo',a:g.miembros[0].id,monto:'',fecha:todayISO(),nota:'',saldo:true,avisar:true,...(pre||{})};
+  const v={de:'yo',a:g.miembros[0].id,monto:'',fecha:todayISO(),nota:'',saldo:true,avisar:true,cuenta:(defAcc()||{}).id||'',...(pre||{})};
   openForm({title:'Registrar pago entre personas',vals:v,saveLabel:'Registrar pago',
     note:'Úsalo cuando alguien le pasa dinero a otra persona para saldar lo que debe.',
     fields:v=>[
@@ -1192,7 +1192,8 @@ function editPago(gid,pre){
       {k:'fecha',label:'Fecha',type:'date'},
       {k:'nota',label:'Nota (opcional)',ph:'Transferencia, efectivo…',full:1},
       ...((g.cloud&&v.de==='yo'&&v.a!=='yo')?[{k:'avisar',label:'Avisarle en los mensajes del grupo',type:'check',hint:'Le llega un mensaje para que sepa que ya le pagaste.'}]:[]),
-      ...((v.de==='yo'||v.a==='yo')?[{k:'saldo',label:'Actualizar mi saldo disponible',type:'check',hint:v.de==='yo'?'Resta el monto de tu saldo.':'Suma el monto a tu saldo.'}]:[])],
+      ...((v.de==='yo'||v.a==='yo')?[{k:'saldo',label:'Actualizar mi saldo disponible',type:'check',hint:v.de==='yo'?'Resta el monto de tu saldo.':'Suma el monto a tu saldo.'}]:[]),
+      ...((v.de==='yo'||v.a==='yo')&&v.saldo&&accs().length>1?[{k:'cuenta',label:v.de==='yo'?'Sale de':'Entra a',type:'select',opts:accs().map(a=>[a.id,a.nombre+' · '+fmt(a.saldo||0)]),full:1}]:[])],
     save:v=>{
       const monto=num(v.monto);
       if(v.de===v.a)return 'Quien paga y quien recibe deben ser personas distintas.';
@@ -1200,7 +1201,7 @@ function editPago(gid,pre){
       const f=v.fecha||todayISO();
       if(!v._force){const dup=g.pagos.find(p=>p.de===v.de&&p.a===v.a&&Math.abs(p.monto-monto)<0.01&&Math.abs(dnum(p.fecha)-dnum(f))<=2);if(dup){v._force=true;return `Ya hay un pago igual de ${fmt(dup.monto)} el ${dshort(dup.fecha)}. Si es otro, toca Registrar pago otra vez.`}}
       const p={id:uid(),fecha:f,de:v.de,a:v.a,monto,nota:String(v.nota||'').trim(),cashDelta:0,movId:null};
-      if(v.saldo&&(v.de==='yo'||v.a==='yo')){p.cashDelta=v.de==='yo'?-monto:monto;p.cuentaId=moveCash(p.cashDelta);const id=uid();p.movId=id;S.movs.unshift({id,fecha:f,tipo:v.de==='yo'?'egreso':'ingreso',monto,desc:v.de==='yo'?`Pago a ${gName(g,v.a)} (${g.nombre})`:`Pago de ${gName(g,v.de)} (${g.nombre})`,cat:'Reembolso',metodo:'cuenta',noCash:true,grupoId:g.id})}
+      if(v.saldo&&(v.de==='yo'||v.a==='yo')){p.cashDelta=v.de==='yo'?-monto:monto;p.cuentaId=moveCash(p.cashDelta,v.cuenta);const id=uid();p.movId=id;S.movs.unshift({id,fecha:f,tipo:v.de==='yo'?'egreso':'ingreso',monto,desc:v.de==='yo'?`Pago a ${gName(g,v.a)} (${g.nombre})`:`Pago de ${gName(g,v.de)} (${g.nombre})`,cat:'Reembolso',metodo:'cuenta',cuenta:p.cuentaId,noCash:true,grupoId:g.id})}
       g.pagos.unshift(p);
       if(g.cloud&&v.de==='yo'&&v.a!=='yo'&&v.avisar)msgPost(g,v.a,`Te pagué ${fmt(monto)}${p.nota?' ('+p.nota+')':''}. ¡Gracias!`,'','Pago de '+fmt(monto));
       commit('Pago registrado');}});
