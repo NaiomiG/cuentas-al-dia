@@ -637,7 +637,7 @@ function renderModal(){
   if(!M){el.innerHTML='';return}
   const act=document.activeElement&&document.activeElement.id;
   const fs=M.fields(M.vals);
-  el.innerHTML=`<div class="scrim" data-a="closeModal"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(M.title)}"><div class="sheet-h"><h2>${esc(M.title)}</h2><button class="btn ghost sm" type="button" data-a="closeModal">Cerrar</button></div>${M.note?`<p class="note">${esc(M.note)}</p>`:''}<form id="mform" autocomplete="off"><div class="fgrid">${fs.map(f=>fieldHTML(f,M.vals[f.k])).join('')}</div>${M.err?`<p class="err" role="alert">${esc(M.err)}</p>`:''}<div class="sheet-f">${M.del?(M.confirm?`<span><span>¿Eliminar?</span> <button type="button" class="btn bad sm" data-a="mdelok">Sí, eliminar</button> <button type="button" class="btn ghost sm" data-a="mdelno">No</button></span>`:`<button type="button" class="btn bad-t sm" data-a="mdel">Eliminar</button>`):'<span></span>'}<button class="btn" type="submit">${esc(M.saveLabel||'Guardar')}</button></div></form></div>`;
+  el.innerHTML=`<div class="scrim" data-a="closeModal"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(M.title)}"><div class="sheet-h"><h2>${esc(M.title)}</h2><button class="btn ghost sm" type="button" data-a="closeModal">Cerrar</button></div>${M.note?`<p class="note">${esc(M.note)}</p>`:''}<form id="mform" autocomplete="off"><div class="fgrid">${fs.map(f=>fieldHTML(f,M.vals[f.k])).join('')}</div>${M.err?`<p class="err" role="alert">${esc(M.err)}</p>${M.err&&esFallo(M.err)?ayudaWA('formulario: '+(M.title||''),M.err):''}`:''}<div class="sheet-f">${M.del?(M.confirm?`<span><span>¿Eliminar?</span> <button type="button" class="btn bad sm" data-a="mdelok">Sí, eliminar</button> <button type="button" class="btn ghost sm" data-a="mdelno">No</button></span>`:`<button type="button" class="btn bad-t sm" data-a="mdel">Eliminar</button>`):'<span></span>'}<button class="btn" type="submit">${esc(M.saveLabel||'Guardar')}</button></div></form></div>`;
   if(act){const a=document.getElementById(act);if(a)a.focus()}
 }
 function commit(msg){persist();render();if(msg)toast(msg)}
@@ -2269,6 +2269,13 @@ function diagTexto(){
   return L.join('\n');
 }
 function waAbrir(t){window.open(waLink(t),'_blank','noopener')}
+
+function esFallo(m){return /no (encontr|pude|se pudo|hay conex|existe|reconoc)|error|fall[óo]|conexi[óo]n|int[eé]ntalo|inv[aá]lid|expir/i.test(m||'')}
+function ayudaWA(ctx,msg){return `<div class="hacts" style="margin-top:6px"><button type="button" class="btn ghost sm" data-a="waCtx" data-ctx="${esc(ctx)}" data-msg="${esc(String(msg||'').replace(/\d{5,}/g,'#').slice(0,140))}">¿No te sale? Escríbenos por WhatsApp</button></div>`}
+function waCtxTexto(ctx,msg){
+  const ua=navigator.userAgent,dev=/iPhone|iPad|iPod/.test(ua)?'iPhone/iPad':/Android/.test(ua)?'Android':'Computadora';
+  return `Hola, me salió este mensaje en Cuentas al Día:\n\n"${msg}"\n\nPantalla: ${ctx}\nDispositivo: ${dev}\n\n(Sin datos personales.)`;
+}
 /* ===== arranque guiado ===== */
 let OB=null;
 const OBI={
@@ -2466,7 +2473,7 @@ function vWallet(){
   const head=`<header class="top"><h1>Nota de Wallet</h1></header>`;
   if(!WL.rows.length){
     return head+`<p class="muted" style="margin:0">Pega el texto de la nota donde guardas tus compras y las convierto en movimientos, con la hora incluida. Nada sale de tu teléfono.</p>
-    ${WL.msg?`<div class="alert ${WL.tone}">${esc(WL.msg)}</div>`:''}
+    ${WL.msg?`<div class="alert ${WL.tone}">${esc(WL.msg)}</div>${WL.tone==='bad'||WL.tone==='warn'||esFallo(WL.msg)?ayudaWA('nota de Wallet',WL.msg):''}`:''}
     <div class="fld"><label for="wl_text">Texto de la nota</label><textarea id="wl_text" data-wl="text" rows="9" placeholder="2026-10-19 14:32 | Oxxo | $45.50 | BBVA Débito&#10;2026-10-19 21:05 | Rappi | $212.00 | Nu">${esc(WL.text)}</textarea><small>Una compra por renglón. Entiendo fechas como 19/10/2026 o 19 oct 2026, 2:32 p.m., y montos como $1,234.50. Separa con | o con coma.</small></div>
     <div class="chips"><button class="btn" data-a="wlAnalizar">Revisar compras</button><label class="btn ghost" for="wlfile" style="cursor:pointer">Subir un .txt</label><input type="file" id="wlfile" accept=".txt,.csv,text/plain" hidden></div>`;
   }
@@ -3856,7 +3863,7 @@ const A={
   gtab:el=>{ui.sub.gtab=el.dataset.v;render()},
   gPersona:el=>gPersonaMenu(el.dataset.g,el.dataset.m),
   gGasto:el=>editGasto(el.dataset.g),
-  waDiag:()=>waAbrir(diagTexto()),copyDiag:()=>{const t=diagTexto();(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Detalles copiados'),()=>toast('No pude copiar, usa WhatsApp'))},waAyuda:()=>waAbrir('Hola, tengo una duda o sugerencia sobre Cuentas al Día:\n\n'),
+  waDiag:()=>waAbrir(diagTexto()),waCtx:b=>waAbrir(waCtxTexto(b.dataset.ctx||'',b.dataset.msg||'')),copyDiag:()=>{const t=diagTexto();(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Detalles copiados'),()=>toast('No pude copiar, usa WhatsApp'))},waAyuda:()=>waAbrir('Hola, tengo una duda o sugerencia sobre Cuentas al Día:\n\n'),
   gSaldar:el=>{closeModal();const g=S.grupos.find(x=>x.id===el.dataset.g),m=el.dataset.m,b=balanceWith(g,m);editPago(g.id,b>0?{de:m,a:'yo',monto:b}:{de:'yo',a:m,monto:-b})},
   gRecordar:el=>{closeModal();ui.sub.gtab='msgs';A.msgRecordar(el)},
   gHist:el=>{closeModal();ui.sub.gtab='cuentas';ui.verMiembro=ui.verMiembro===el.dataset.m?null:el.dataset.m;render()},
