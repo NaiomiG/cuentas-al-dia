@@ -1030,6 +1030,28 @@ function fechasEstado(c,corteISO,limiteISO){
   if(corteISO)c.corte=parse(corteISO).d;
   if(corteISO&&limiteISO&&dnum(limiteISO)>dnum(corteISO))c.diasPago=Math.max(1,dnum(limiteISO)-dnum(corteISO));
 }
+
+/* ===== borrar los datos de una tarjeta (empezar limpio sin quitar la tarjeta) ===== */
+function datosTarjeta(c){
+  const movs=S.movs.filter(m=>m.metodo===c.id&&!m.key);
+  return{movs,msi:(c.msi||[]).length};
+}
+function limpiarTarjeta(id){
+  const c=cardOf(id);if(!c)return;
+  const d=datosTarjeta(c);
+  openForm({title:'Borrar datos de la tarjeta',vals:{ok:''},saveLabel:'Borrar datos',
+    note:`Se quitan de "${c.nombre}": ${d.movs.length} movimientos, ${d.msi} compras a meses, y se ponen en cero el saldo, el pago para no generar intereses y el mínimo. La tarjeta se queda con su nombre, límite, corte y días de pago. Los pagos que ya registraste desde tus cuentas no se tocan. No se puede deshacer.`,
+    fields:()=>[{k:'ok',label:'Escribe BORRAR para confirmar',ph:'BORRAR',full:1}],
+    save:v=>{
+      if(String(v.ok||'').trim().toUpperCase()!=='BORRAR')return 'Escribe BORRAR para confirmar.';
+      const ids=new Set(d.movs.map(m=>m.id));
+      S.movs=S.movs.filter(m=>!ids.has(m.id));
+      c.balance=0;c.statement=null;c.minimo=null;c.msi=[];c.desde=todayISO();
+      S.stmtSeen={};
+      if(S.ultReemplazo)S.ultReemplazo=null;
+      closeModal();commit('Datos de la tarjeta borrados. Ya puedes subir su estado de cuenta de nuevo.');
+    }});
+}
 function cuadrarTarjeta(id){
   const c=cardOf(id);if(!c)return;
   const v={saldo:c.balance||'',statement:c.statement==null?'':c.statement,minimo:c.minimo>0?c.minimo:'',corte:'',limite:''};
@@ -2853,7 +2875,7 @@ function cardArticle(c,t,all,nav){
       ${msiPendTotal(c)>0?`<div class="kv"><span>Compras a meses por pagar</span><span>${fmt0(msiPendTotal(c))}</span></div>`:''}
       <details class="small muted" style="margin:6px 0 2px"><summary style="cursor:pointer">¿Qué significa cada monto?</summary><div style="margin-top:6px"><b style="color:var(--ink)">Para no generar intereses:</b> lo que debes pagar antes de la fecha límite para que no te cobren intereses. Incluye lo del periodo y la mensualidad de tus compras a meses.<br><b style="color:var(--ink)">Pago mínimo:</b> lo menos que puedes pagar sin caer en mora. Si pagas solo eso, el resto genera intereses.<br><b style="color:var(--ink)">Saldo total (lo que debes):</b> todo lo que le debes al banco, incluidas las mensualidades futuras de tus compras a meses. No tienes que pagarlo de una vez.</div></details>
       ${(c.msi||[]).map(q=>{const hechos=q.meses-q.remaining,end=shiftMonth(monthKey(t),Math.max(0,q.remaining-1)).split('-').map(Number);return `<div class="msi"><div><b>${esc(q.concepto)}</b><span class="muted small">${fmt0(msiMensual(q))} al mes · ${q.remaining>0?`faltan ${q.remaining}`:'liquidado'}</span></div><button class="link" data-a="editMsi" data-id="${c.id}" data-p="${q.id}">Editar</button><div class="prog ${q.remaining===0?'good':''}"><i style="width:${(hechos/q.meses*100).toFixed(0)}%"></i></div></div>`}).join('')}
-      <button class="link" style="margin-top:10px" data-a="addMsi" data-id="${c.id}">Agregar compra a meses</button> <button class="link" style="margin:10px 0 0 14px" data-a="tarCuadrar" data-id="${c.id}">Cuadrar con mi estado</button></div></article>`}
+      <button class="link" style="margin-top:10px" data-a="addMsi" data-id="${c.id}">Agregar compra a meses</button> <button class="link" style="margin:10px 0 0 14px" data-a="tarCuadrar" data-id="${c.id}">Cuadrar con mi estado</button> <button class="link" style="margin:10px 0 0 14px;color:var(--bad)" data-a="tarLimpiar" data-id="${c.id}">Borrar sus datos</button></div></article>`}
 function usoCuenta(id){const lim=addDays(todayISO(),-90);return S.movs.filter(m=>m.fecha>=lim&&(m.cuenta===id||m.metodo===id)).length}
 function itemsTarjetas(){
   const L=[...S.cards.map(c=>({k:'c',id:c.id,o:c,nom:c.nombre,tipo:'Crédito'})),...accsV().map(a=>({k:'a',id:a.id,o:a,nom:a.nombre,tipo:ACC_T[a.tipo]||'Cuenta'}))];
@@ -3915,7 +3937,7 @@ const A={
   gHist:el=>{closeModal();ui.sub.gtab='cuentas';ui.verMiembro=ui.verMiembro===el.dataset.m?null:el.dataset.m;render()},
   gPagoSug:el=>editPago(el.dataset.g,{de:el.dataset.de,a:el.dataset.para,monto:+el.dataset.monto}),
   gConcMsg:el=>{const g=S.grupos.find(x=>x.id===el.dataset.g);if(!g||!g.cloud)return;const c=gConciliar(g);msgPost(g,'',gTextoConciliacion(g,c.pagos),'','Cuentas del grupo');persist();ui.sub.gtab='msgs';render();toast('Mandé las cuentas al chat')},
-  tarCuadrar:el=>cuadrarTarjeta(el.dataset.id||ui.det),ctaCuadrar:el=>cuadrarCuenta(el.dataset.id||ui.det),stCuadraSaldo:()=>stCuadraSaldo(),
+  tarLimpiar:el=>limpiarTarjeta(el.dataset.id||ui.det),tarCuadrar:el=>cuadrarTarjeta(el.dataset.id||ui.det),ctaCuadrar:el=>cuadrarCuenta(el.dataset.id||ui.det),stCuadraSaldo:()=>stCuadraSaldo(),
   wlAnalizar:()=>wlAnalizar(),wlConfirm:()=>wlConfirm(),wlCancel:()=>{WL=null;render()},
   habMes:el=>{const nowK=monthKey(todayISO()),k=shiftMonth(ui.habMes||nowK,+el.dataset.d);ui.habMes=k>nowK?nowK:k;render()},
   habSet:el=>{ui.habMes=el.dataset.k;render()},
