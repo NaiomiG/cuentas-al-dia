@@ -76,6 +76,18 @@ nav.rail button[aria-current="page"]{color:var(--accent);font-weight:600}
 .wd span{font-size:11px;font-weight:600;color:var(--muted)}.wd span.neg{color:var(--bad)}.wd span.pos{color:var(--good)}
 .wd i.cut{font-style:normal;font-size:10px;color:var(--accent);font-weight:600}
 .wd.hoy{border-color:var(--ink)}
+.cal{display:flex;flex-direction:column;gap:4px}
+.cal .ch,.cal .cw{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}
+.cal .ch span{text-align:center;font-size:12px;color:var(--muted)}
+.cd{display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 0 5px;border:1px solid transparent;border-radius:12px;background:transparent;color:var(--ink);min-height:56px;min-width:0}
+.cd b{font:600 15px var(--f-display);width:26px;height:26px;line-height:26px;border-radius:50%;text-align:center}
+.cd.hoy b{background:var(--accent);color:var(--accent-ink)}
+.cd.sel{border-color:var(--ring)}
+.cd.out{opacity:.45}
+.cd .cn{font-size:11px;font-weight:600;color:var(--muted);line-height:13px;min-height:13px}.cd .cn.neg{color:var(--bad)}.cd .cn.pos{color:var(--good)}
+.cd .cb{width:22px;height:3px;border-radius:2px;background:transparent}
+.cd .cb.g{background:color-mix(in srgb,var(--good) 60%,transparent)}.cd .cb.a1{background:color-mix(in srgb,var(--warn,#C98A00) 50%,transparent)}.cd .cb.a2{background:var(--warn,#C98A00)}
+.cdet{margin:8px 0 0;font-size:15px;line-height:1.45;color:var(--ink)}
 .patsvg{width:100%;height:auto;display:block}
 .plan{display:flex;flex-direction:column;gap:2px;padding:6px 0 12px;border-top:1px solid var(--line)}
 .plan .kv{border-top:0;padding:5px 0}
@@ -2828,9 +2840,9 @@ function vHoy(){
     <p>${m.libre<0?'te faltarían':'libres'}${m.nextInc?` antes de que entre tu ingreso`:' para los próximos 14 días'}</p>
     <p class="sub">Tienes <b class="n">${fmt0(S.cash)}</b> y salen <b class="n">${fmt0(m.comp)}</b>${m.nextInc?` antes de que entren <b class="n">${fmt0(m.nextInc.amount)}</b>`:''}.</p>
     ${diaHTML(m)}
-    <div class="hacts"><button class="btn" data-a="add">Anotar un gasto</button>${alc==='bad'?`<button class="btn ghost" data-a="tab" data-v="pagos">Ver qué pagar primero</button>`:''}${alc==='bad'&&accsV().length>1?`<button class="btn ghost" data-a="transfer">Pasar dinero</button>`:''}</div>
+    ${alc==='bad'?`<div class="hacts"><button class="btn" data-a="tab" data-v="pagos">Ver qué pagar primero</button></div>`:''}
   </section>
-  ${semanaHTML(m)}
+  ${calHTML(m)}
   <section class="lista"><h2>Lo que sigue</h2>${next.length?next.map(i=>row(i)).join(''):'<div class="empty"><b>Nada pendiente</b>Toca + para agregar un pago o un ingreso.</div>'}${m.pend.length>next.length?`<button class="link more" data-a="tab" data-v="pagos">Ver los pagos del mes</button>`:''}</section>
   ${S.grupos.length?`<button class="owed" data-a="tab" data-v="grupos"><span><b>${gt.owed>0?'Te deben':'Compartidos'}</b><br><span class="small muted">${esc(owedSub)}${unreadMsgs()?' · '+msgNuevosTxt(unreadMsgs()):''}</span></span><span class="a n ${gt.owed>0?'':'bad'}">${gt.owed>0?fmt0(gt.owed):''}</span>${ICON.chev}</button>`:''}
   ${S.demo?`<div class="demo-b"><span>Datos de ejemplo.</span><span class="chips"><button class="btn sm ghost" data-a="startBlank">En blanco</button></span></div>`:''}`;
@@ -2893,7 +2905,10 @@ function vDetalle(){
   const t=todayISO(),all=instances(addDays(t,-60),addDays(t,70));
   const card=cardOf(ui.det),a=card?null:acc(ui.det);
   if(!card&&!a){ui.det=null;return vTarjetas()}
-  const L=movsDe(ui.det),mk=monthKey(t),mes=L.filter(m=>monthKey(m.fecha)===mk);
+  const L0=movsDe(ui.det),mk=monthKey(t),mesesL=[...new Set(L0.map(m=>monthKey(m.fecha)))];
+  const dm=ui.detMes&&ui.detMes.id===ui.det?ui.detMes.k:null,selMes=dm||(mesesL.includes(mk)?mk:(mesesL[0]||'todo'));
+  const L=selMes==='todo'?L0:L0.filter(m=>monthKey(m.fecha)===selMes);
+  const mesChips=mesesL.length>1?`<div class="chips" role="group" aria-label="Mes">${mesesL.slice(0,12).map(k=>`<button class="btn sm${k===selMes?'':' ghost'}" data-a="detMes" data-v="${k}" aria-pressed="${k===selMes}">${mesCorto(k)}</button>`).join('')}<button class="btn sm${selMes==='todo'?'':' ghost'}" data-a="detMes" data-v="todo" aria-pressed="${selMes==='todo'}">Todo</button></div>`:'';
   const nom=card?card.nombre:a.nombre;
   const row=m=>{
     let sgn,cls='',lab;
@@ -2907,7 +2922,7 @@ function vDetalle(){
   return `<div><button class="back" data-a="detBack">‹ Tarjetas</button><header class="top"><div><h1>${esc(nom)}</h1></div><span class="hb">${a?(a.tipo==='efectivo'?'<button class="btn sm" data-a="efCuadrar">Cuadrar</button>':'<button class="btn sm" data-a="ctaCuadrar" data-id="'+a.id+'">Cuadrar</button>'):'<button class="btn sm" data-a="tarCuadrar" data-id="'+card.id+'">Cuadrar</button>'}<button class="btn ghost sm" data-a="${card?'editCard':'editCuenta'}" data-id="${ui.det}">Editar</button></span></header></div>
   ${face}
   ${detMetricsHTML(ui.det)}
-  <section class="sect"><h2>Movimientos<small>${L.length?L.length+(L.length>80?' · últimos 80':''):''}</small></h2>${L.length?L.slice(0,80).map(row).join(''):'<div class="empty"><b>Sin movimientos todavía</b>Cuando registres un gasto, un pago o subas un estado de cuenta con esta '+(card?'tarjeta':'cuenta')+', aparecen aquí.</div>'}</section>`;
+  <section class="sect"><h2>Movimientos<small>${L.length?L.length+(L.length>80?' · últimos 80':''):''}</small></h2>${mesChips}${L.length?L.slice(0,80).map(row).join(''):'<div class="empty"><b>Sin movimientos todavía</b>Cuando registres un gasto, un pago o subas un estado de cuenta con esta '+(card?'tarjeta':'cuenta')+', aparecen aquí.</div>'}</section>`;
 }
 function vTarjetas(){
   if(ui.det)return vDetalle();
@@ -2928,8 +2943,9 @@ function vTarjetas(){
 function vMas(){
   const go=(a,t,s)=>`<button class="go" data-a="tab" data-v="${a}"><span><span class="t">${t}</span><br><span class="s">${s}</span></span>${ICON.chev}</button>`;
   const grp=(t,x)=>`<section class="mgrp"><h2>${t}</h2>${x}</section>`;
+  const goA=(a,t,s)=>`<button class="go" data-a="${a}"><span><span class="t">${t}</span><br><span class="s">${s}</span></span>${ICON.chev}</button>`;
   return `<header class="top"><h1>Más</h1></header>
-  ${grp('Anotar y revisar',go('mov','Movimientos y estados de cuenta','Busca lo que gastaste o sube un estado para completar lo que olvidaste')+go('wallet','Importar nota de Wallet','Pega tus compras de Notas y guárdalas con su hora'))}
+  ${grp('Anotar y revisar',go('mov','Movimientos y estados de cuenta','Busca lo que gastaste o sube un estado para completar lo que olvidaste')+go('wallet','Importar nota de Wallet','Pega tus compras de Notas y guárdalas con su hora')+(accsV().length>1?goA('transfer','Pasar dinero entre cuentas','Mueve dinero de una cuenta a otra'):''))}
   ${grp('Planear',go('metas','Metas','Un viaje, una compra o ahorrar en grupo, y si te alcanza')+go('ahorro','Ahorro','Tus apartados y cuánto crecerían')+go('alertas','Alertas',alertas().length?`${alertas().length} por revisar`:'Avisos de liquidez con tus propias reglas'))}
   ${grp('Tu cuenta',go('ajustes','Ajustes','Tu nombre, saldo, regla de presupuesto y respaldo')+`<button class="go" data-a="waAyuda"><span><span class="t">Ayuda por WhatsApp</span><br><span class="s">Cuéntanos qué no funcionó o qué te gustaría que hiciera</span></span>${ICON.chev}</button>`)}
   <p class="small muted" style="margin:18px 0 0">¿Buscas Panorama, Hábitos, compras a meses o el plan de deudas? Están en <button class="link" data-a="tab" data-v="resumen">Resumen</button>.</p>`;
@@ -3388,6 +3404,81 @@ function semanaHTML(m){
   const low=m.pts.slice(0,8).reduce((a,p)=>p.bal<a.bal?p:a,m.pts[0]);
   const nota=low&&low.bal<S.cash-.5?`<p class="small muted" style="margin:0">Tu saldo más bajo en estos días: <b class="n" style="color:${low.bal<0?'var(--bad)':'var(--ink)'}">${fmt0(low.bal)}</b>${low.d!==t?` el ${dshort(low.d)}`:''}.</p>`:'';
   return `<section class="sect"><h2>Próximos 7 días</h2><div class="week">${cells.join('')}</div>${nota}</section>`;
+}
+
+/* ---- calendario de Hoy: lo que entró, salió y debías ---- */
+function deboDia(){
+  if(!S.cards.length)return null;
+  const tot=S.cards.reduce((a,c)=>a+(+c.balance||0),0),dm={};
+  S.movs.forEach(m=>{
+    let c=null,d=0;
+    if(m.key&&m.key.startsWith('k:')){c=cardOf(m.key.split(':')[1]);d=-(+m.monto||0)}
+    else{c=cardOf(m.metodo);if(!c)return;
+      if(m.cardDelta)d=+m.cardDelta;
+      else if(m.key&&m.key.startsWith('i:')&&m.tipo==='egreso')d=+m.monto||0}
+    if(c&&d)dm[m.fecha]=(dm[m.fecha]||0)+d});
+  const minD=S.cards.reduce((a,c)=>c.desde&&c.desde<a?c.desde:a,todayISO());
+  return {tot,dm,minD};
+}
+function deboAl(D,d){let x=D.tot;for(const k in D.dm)if(k>d)x-=D.dm[k];return Math.max(0,r2(x))}
+function diaStats(d,D){
+  let ent=0,sal=0,tar=0;
+  S.movs.forEach(m=>{
+    if(m.fecha!==d||m.tipo==='transfer')return;
+    const card=!(m.key&&m.key.startsWith('k:'))&&cardOf(m.metodo);
+    if(m.tipo==='ingreso'){if(!card)ent+=+m.monto||0}
+    else if(m.tipo==='egreso'){if(card)tar+=+m.monto||0;else sal+=+m.monto||0}
+  });
+  return {ent,sal,tar,debo:D&&d>=D.minD?deboAl(D,d):null};
+}
+function calDetalle(sel,t,D,m){
+  const cap=x=>x.charAt(0).toUpperCase()+x.slice(1);
+  if(sel>t){
+    const L=instances(sel,sel).filter(i=>!isDone(i));
+    return `${cap(fechaLarga(sel))}: ${L.length?'vence '+L.map(i=>`${esc(i.name)} ${fmt0(i.amount)}`).join(', ')+'.':'no vence nada.'}`;
+  }
+  const s=diaStats(sel,D),parts=[];
+  if(s.ent)parts.push(`entraron ${fmt0(s.ent)}`);
+  if(s.sal)parts.push(`salieron ${fmt0(s.sal)} de tus cuentas`);
+  if(s.tar)parts.push(`cargaste ${fmt0(s.tar)} a tarjetas`);
+  const nom=sel===t?'Hoy':cap(fechaLarga(sel));
+  let tx=`${nom}: ${parts.length?parts.join(', '):'sin movimientos'}.`;
+  if(D&&s.debo!=null){
+    const prev=addDays(sel,-1),a=prev>=D.minD?deboAl(D,prev):null;
+    if(a!=null&&Math.abs(a-s.debo)>.5)tx+=` Debías ${fmt0(a)} en tarjetas y ${sel===t?'ahora debes':'quedaste en'} ${fmt0(s.debo)}.`;
+    else tx+=` En tarjetas ${sel===t?'debes':'debías'} ${fmt0(s.debo)}.`;
+  }
+  return tx;
+}
+function calHTML(m){
+  const t=m.t,D=deboDia(),pm=parse(t),full=!!ui.calFull;
+  const mon=d=>addDays(d,-((wday(d)+6)%7));
+  let start,end;
+  if(full){const f=`${pm.y}-${String(pm.m+1).padStart(2,'0')}-01`;start=mon(f);end=addDays(mon(clampDay(pm.y,pm.m,31)),6)}
+  else{start=mon(addDays(t,-7));end=addDays(start,13)}
+  const ds={};
+  for(let d=start;d<=end;d=addDays(d,1))if(d<=t)ds[d]=diaStats(d,D);
+  const mx=Math.max(0,...Object.values(ds).map(x=>x.debo||0));
+  const sel=ui.calSel&&ui.calSel>=start&&ui.calSel<=end?ui.calSel:t;
+  const wk=[];
+  for(let d=start;d<=end;){
+    const row=[];
+    for(let k=0;k<7;k++,d=addDays(d,1)){
+      const p=parse(d);let txt='&nbsp;',cls='',bc='';
+      if(d<=t){const s=ds[d],net=s.ent-s.sal;
+        if(s.ent||s.sal){txt=(net>=0?'+':'−')+kc(net);cls=net<0?'neg':'pos'}else if(s.tar)txt='•';
+        if(s.debo!=null)bc=(mx<=0||s.debo<=0)?'g':s.debo>=mx*.75?'a2':s.debo>=mx*.55?'a1':'g';
+      }else{const pt=m.pts[dnum(d)-dnum(t)];
+        if(pt&&pt.ev.length){const net=pt.ev.reduce((a,e)=>a+e.delta,0);txt=net?(net>0?'+':'−')+kc(net):'•';cls=net<0?'neg':net>0?'pos':''}}
+      row.push(`<button class="cd${d===t?' hoy':''}${d===sel?' sel':''}${monthKey(d)!==monthKey(t)?' out':''}" data-a="calSel" data-d="${d}" aria-label="${esc(fechaLarga(d))}" aria-pressed="${d===sel}"><b>${p.d}</b><span class="cn ${cls}">${txt}</span><i class="cb ${bc}"></i></button>`);
+    }
+    wk.push(`<div class="cw">${row.join('')}</div>`);
+  }
+  const mes=new Date(pm.y,pm.m,1,12).toLocaleDateString('es-MX',{month:'long'});
+  return `<section class="sect"><h2>${mes.charAt(0).toUpperCase()+mes.slice(1)}<small><button class="link" data-a="calMes">${full?'Ver menos':'Ver mes'}</button></small></h2>
+  <div class="cal"><div class="ch" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>${wk.join('')}</div>
+  <p class="cdet" aria-live="polite">${calDetalle(sel,t,D,m)}</p>
+  ${D?`<p class="small muted" style="margin:6px 0 0">La barrita es lo que debías en tarjetas al cerrar el día: amarilla, más; verde, menos.</p>`:''}</section>`;
 }
 
 /* ---- patrimonio ---- */
@@ -4012,6 +4103,9 @@ const A={
   newCard:()=>{closeModal();editCard()},newDeb:()=>{closeModal();editCuenta(null,'debito')},newAho:()=>{closeModal();editCuenta(null,'ahorro')},newEfe:()=>{closeModal();editCuenta(null,'efectivo')},
   ordToggle:()=>{ui.ord=!ui.ord;render()},
   ordAuto:()=>{S.orden=null;commit()},
+  calSel:el=>{ui.calSel=el.dataset.d;render()},
+  calMes:()=>{ui.calFull=!ui.calFull;render()},
+  detMes:el=>{ui.detMes={id:ui.det,k:el.dataset.v};render()},
   ordMove:el=>{const L=itemsTarjetas().map(x=>x.id),i=L.indexOf(el.dataset.id),j=i+(+el.dataset.d);if(i<0||j<0||j>=L.length)return;[L[i],L[j]]=[L[j],L[i]];S.orden=L;commit()},
   verItem:el=>{ui.det=el.dataset.id;render();window.scrollTo(0,0)},detBack:()=>{ui.det=null;render()},
   editMeta:el=>editMeta(el.dataset.id),aportarMeta:el=>aportarMeta(el.dataset.id),
