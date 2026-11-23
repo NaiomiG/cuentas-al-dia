@@ -1047,10 +1047,10 @@ function cuadrarEfectivo(){
       m.cuenta=moveCash(d,a.id);S.movs.unshift(m);commit(d<0?`Anoté ${fmt(-d)} de efectivo sin registrar`:'Efectivo corregido');}});
 }
 /* ===== cuadrar con el estado de cuenta ===== */
-function ajusteTarjeta(c,nuevo,desc){
+function ajusteTarjeta(c,nuevo,desc,fecha){
   const d=r2(nuevo-(+c.balance||0));
   if(Math.abs(d)<0.005)return 0;
-  S.movs.unshift({id:uid(),fecha:todayISO(),tipo:d>0?'egreso':'ingreso',monto:Math.abs(d),desc:desc||'Ajuste con estado de cuenta',cat:'Ajuste',metodo:c.id,fuente:'estado',noCash:true,cashDelta:0,cardDelta:d,manual:true,ajuste:true});
+  S.movs.unshift({id:uid(),fecha:fecha||todayISO(),tipo:d>0?'egreso':'ingreso',monto:Math.abs(d),desc:desc||'Ajuste con estado de cuenta',cat:'Ajuste',metodo:c.id,fuente:'estado',noCash:true,cashDelta:0,cardDelta:d,manual:true,ajuste:true});
   c.balance=r2(nuevo);
   return d;
 }
@@ -2234,11 +2234,30 @@ function annotate(){
     });
   });
 }
+const UNDOKEY='cuentas-al-dia-undo';
+const stEsAntiguo=()=>{const c=ST&&isCardMedio(ST.cuenta)?cardOf(ST.cuenta):null;return !!(c&&ST.meta&&ST.meta.fechaCorte&&c.ultCorte&&ST.meta.fechaCorte<c.ultCorte)};
+const undoList=()=>{try{return JSON.parse(localStorage.getItem(UNDOKEY)||'[]')}catch(e){return[]}};
+function guardarUndo(txt){
+  const L=undoList();L.unshift({t:new Date().toISOString(),txt,json:JSON.stringify(S)});
+  for(let n=Math.min(L.length,3);n>=0;n--){try{localStorage.setItem(UNDOKEY,JSON.stringify(L.slice(0,n)));return}catch(e){}}
+}
+function deshacerCarga(i){
+  const u=undoList()[i];if(!u)return;
+  openForm({title:'Volver a antes de esa carga',vals:{},saveLabel:'Volver a antes',
+    note:`Se restaura todo como estaba antes de "${u.txt}" (${new Date(u.t).toLocaleString('es-MX',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}). Lo que hayas anotado o cambiado después de esa carga se pierde.`,
+    fields:()=>[],
+    save:()=>{try{const s=JSON.parse(u.json);S=migrate(s);const L=undoList();L.splice(i,1);try{localStorage.setItem(UNDOKEY,JSON.stringify(L))}catch(e){}ST=newST();closeModal();persist();render();toast('Listo, volviste a como estaba antes de esa carga')}catch(e){return 'No pude restaurar ese punto.'}}});
+}
+function undoBox(){
+  const L=undoList();if(!L.length)return '';
+  return `<div class="box" style="margin-top:12px"><h2 style="font-size:16px">Deshacer una carga</h2><p class="small muted" style="margin:0 0 8px">Guardo las últimas cargas de estados en este dispositivo para que puedas volver a antes.</p>${L.map((u,i)=>`<div class="kv"><span>${esc(u.txt)}<br><small class="muted">${new Date(u.t).toLocaleString('es-MX',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</small></span><button class="link" data-a="deshacerCarga" data-i="${i}">Volver a antes</button></div>`).join('')}</div>`;
+}
 function confirmImport(){
   const inc=ST.rows.filter(r=>r.inc&&r.cat!=='Ignorar');
   if(!inc.length){toast('No hay movimientos marcados para guardar');return}
-  const isCard=isCardMedio(ST.cuenta),card=isCard?cardOf(ST.cuenta):null;let n=0,prog=0,quitados=0;const act=ST.actualizarSaldo||ST.reemplazar,nuevos=[];
-  if(ST.reemplazar){const R=reemplazoCandidatos(),ids=new Set(R.map(m=>m.id));R.forEach(m=>movRevert(m));S.movs=S.movs.filter(m=>!ids.has(m.id));quitados=R.length;S.ultReemplazo={fecha:todayISO(),quitados:R,nuevos}}
+  const isCard=isCardMedio(ST.cuenta),card=isCard?cardOf(ST.cuenta):null;let n=0,prog=0,quitados=0;const antiguo=stEsAntiguo(),act=!antiguo&&(ST.actualizarSaldo||ST.reemplazar),nuevos=[];
+  guardarUndo(`Carga de ${ST.nEstados?ST.nEstados+' estados':'un estado'} ${isCard&&card?'en '+card.nombre:'en tu cuenta'}`);
+  if(ST.reemplazar&&!antiguo){const R=reemplazoCandidatos(),ids=new Set(R.map(m=>m.id));R.forEach(m=>movRevert(m));S.movs=S.movs.filter(m=>!ids.has(m.id));quitados=R.length;S.ultReemplazo={fecha:todayISO(),quitados:R,nuevos}}
   for(const r of inc){
     const inst=r.ref?ST.pend[r.ref]:null;
     if(inst&&!S.paid[inst.key]){payInst(inst,{monto:r.monto,fecha:r.fecha,noCash:!act});prog++}
@@ -2257,15 +2276,16 @@ function confirmImport(){
   ST.rows.filter(r=>!r.inc&&r.flag==='registrado').forEach(r=>{S.stmtSeen[r.sig]=1});
   S.movs.sort((a,b)=>a.fecha<b.fecha?1:a.fecha>b.fecha?-1:0);
   let extra='';
-  if(card&&tieneDatosTarjeta()&&!ST.metaAplicada){const m=ST.meta;
+  if(card&&tieneDatosTarjeta()&&!ST.metaAplicada&&!antiguo){const m=ST.meta;
     if(!m.fechaCorte||!card.ultCorte||m.fechaCorte>=card.ultCorte){aplicarMeta(true);extra='. Actualicé también los datos de la tarjeta (pago, saldo y compras a meses)'}
     else extra='. No cambié los datos de la tarjeta porque este estado es más viejo que el último que subiste'}
+  if(antiguo)extra='. Como es más viejo que el último que subiste, lo guardé como historial sin cambiar el saldo ni los datos de la tarjeta';
   ST=newST();ui.sub.mov='lista';
   commit(`${n} movimientos guardados${quitados?` y ${quitados} tuyos del periodo sustituidos`:''}${prog?` (${prog} marcaron un pago programado)`:''}${extra}`);
 }
 function stTail(){
   Object.assign(ST.diag,{banco:(ST.meta&&ST.meta.banco)||'no detectado',filas:(ST.rows||[]).length,msi:((ST.meta&&ST.meta.msi)||[]).length});
-  if(ST.rows.length){ST.reemplazar=ST.rows.length>=3;annotate();ST.stage='revisar';ST.msg=''}
+  if(ST.rows.length){ST.reemplazar=ST.rows.length>=3&&!stEsAntiguo();annotate();ST.stage='revisar';ST.msg=''}
   else if(!ST.scanned&&tieneDatosTarjeta()){ST.stage='revisar';ST.msg=''}
   else if(!ST.scanned&&ST.bloqueo){ST.msg=ST.bloqueo;ST.msgTone='warn'}
   else if(!ST.scanned){ST.msg='No encontré movimientos en este archivo. Prueba pegando el texto del estado o con un CSV.';ST.msgTone='warn'}
@@ -2402,7 +2422,7 @@ function aplicarMeta(quiet){
   if(m.pagoSinIntereses!=null)c.statement=m.pagoSinIntereses;
   if(m.pagoMinimo!=null)c.minimo=m.pagoMinimo;
   const ms=(m.msi&&m.msi.length)?syncMsi(c,m.msi):null;
-  let aj=0;const sc=saldoCalc(c,m);if(sc)aj=ajusteTarjeta(c,sc.total);
+  let aj=0;const sc=saldoCalc(c,m);if(sc)aj=ajusteTarjeta(c,sc.total,null,m.fechaCorte&&m.fechaCorte<=todayISO()?m.fechaCorte:null);
   if(m.limite>0&&!(+c.limite>0))c.limite=m.limite;
   if(m.fechaCorte)c.corte=parse(m.fechaCorte).d;
   if(m.fechaLimite&&m.fechaCorte)c.diasPago=Math.max(1,dnum(m.fechaLimite)-dnum(m.fechaCorte));
@@ -2960,7 +2980,7 @@ function cardArticle(c,t,all,nav){
     return `<article><button class="${cardCls(c)}"${cardStyle(c)} data-a="${nav?'verItem':'editCard'}" data-id="${c.id}" aria-label="${nav?'Ver movimientos de':'Editar'} ${esc(c.nombre)}"><div class="nm"><span class="cn"><span class="mono" aria-hidden="true">${esc(cardMono(c))}</span>${esc(c.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>Debes</small><div class="bal">${fmt0(c.balance)}</div><div class="prog"><i style="width:${Math.min(100,u).toFixed(0)}%"></i></div><small style="margin-top:6px">${c.limite>0?`${u.toFixed(0)}% de ${fmt0(c.limite)}`:'Sin límite capturado'}</small>${ui.theme==='cristal'?cicloHTML(c):''}</div></button>
       <div style="padding:8px 2px 0"><div class="kv"><span>Corte</span>${+c.corte>=1?`<span>${dshort(ncut)} · ${rel(ncut)}</span>`:`<button class="link" data-a="editCard" data-id="${c.id}">Falta capturarlo</button>`}</div>
       ${venc.map(i=>`<div class="kv"><span>Sin confirmar · ${dshort(i.date)}</span><span>${fmt0(i.amount)} <button class="link" data-a="pay" data-k="${i.key}">Ya lo pagué</button></span></div>`).join('')}
-      <div class="kv"><span>Siguiente pago</span><span>${nx?(+c.corte>=1?`${dshort(nx.date)} · ${nx.unk?'por calcular':fmt0(nx.amount)+(nx.est?' aprox.':'')}`:`Se cuenta tu saldo: ${fmt0(nx.amount)}`):'—'}</span></div>
+      ${nx&&+c.corte>=1&&c.statement>0?`<div class="kv"><span>Pagar antes del</span><span>${dshort(nx.date)} · ${rel(nx.date)}</span></div><div class="kv"><span>Pago para no generar intereses</span><span>${fmt0(c.statement)}</span></div>`:`<div class="kv"><span>Siguiente pago</span><span>${nx?(+c.corte>=1?`${dshort(nx.date)} · ${nx.unk?'por calcular':fmt0(nx.amount)+(nx.est?' aprox.':'')}`:`Se cuenta tu saldo: ${fmt0(nx.amount)}`):'—'}</span></div>`}
       ${+c.minimo>0?`<div class="kv"><span>Pago mínimo</span><span>${fmt0(c.minimo)}</span></div>`:''}
       ${msiPendTotal(c)>0?`<div class="kv"><span>Compras a meses por pagar</span><span>${fmt0(msiPendTotal(c))}</span></div>`:''}
       <details class="small muted" style="margin:6px 0 2px"><summary style="cursor:pointer">¿Qué significa cada monto?</summary><div style="margin-top:6px"><b style="color:var(--ink)">Para no generar intereses:</b> lo que debes pagar antes de la fecha límite para que no te cobren intereses. Incluye lo del periodo y la mensualidad de tus compras a meses.<br><b style="color:var(--ink)">Pago mínimo:</b> lo menos que puedes pagar sin caer en mora. Si pagas solo eso, el resto genera intereses.<br><b style="color:var(--ink)">Saldo total (lo que debes):</b> todo lo que le debes al banco, incluidas las mensualidades futuras de tus compras a meses. No tienes que pagarlo de una vez.</div></details>
@@ -2991,14 +3011,19 @@ function itemsTarjetas(){
   return L;
 }
 const movsDe=id=>S.movs.filter(m=>m.cuenta===id||m.metodo===id||m.from===id||m.to===id||(m.key&&m.key.startsWith('k:'+id+':'))).sort((a,b)=>a.fecha<b.fecha?1:a.fecha>b.fecha?-1:0);
+function perTarjeta(f,corte){const p=parse(f),cut=clampDay(p.y,p.m,corte);if(f<=cut)return cut;const n=shiftMonth(monthKey(f),1).split('-').map(Number);return clampDay(n[0],n[1]-1,corte)}
+function perIni(end,corte){const n=shiftMonth(monthKey(end),-1).split('-').map(Number);return addDays(clampDay(n[0],n[1]-1,corte),1)}
 function vDetalle(){
   const t=todayISO(),all=instances(addDays(t,-60),addDays(t,70));
   const card=cardOf(ui.det),a=card?null:acc(ui.det);
   if(!card&&!a){ui.det=null;return vTarjetas()}
-  const L0=movsDe(ui.det),mk=monthKey(t),mesesL=[...new Set(L0.map(m=>monthKey(m.fecha)))];
+  const porPer=!!(card&&+card.corte>=1),keyOf=m=>porPer?perTarjeta(m.fecha,+card.corte):monthKey(m.fecha);
+  const L0=movsDe(ui.det),mk=porPer?perTarjeta(t,+card.corte):monthKey(t),mesesL=[...new Set(L0.map(keyOf))].sort().reverse();
+  const dmes=iso=>{const q=parse(iso);return q.d+' '+MES[q.m]},lblK=k=>porPer?`${dmes(perIni(k,+card.corte))} – ${dmes(k)}`:mesCorto(k);
   const dm=ui.detMes&&ui.detMes.id===ui.det?ui.detMes.k:null,selMes=dm||(mesesL.includes(mk)?mk:(mesesL[0]||'todo'));
-  const L=selMes==='todo'?L0:L0.filter(m=>monthKey(m.fecha)===selMes);
-  const mesChips=mesesL.length>1?`<div class="chips" role="group" aria-label="Mes">${mesesL.slice(0,12).map(k=>`<button class="btn sm${k===selMes?'':' ghost'}" data-a="detMes" data-v="${k}" aria-pressed="${k===selMes}">${mesCorto(k)}</button>`).join('')}<button class="btn sm${selMes==='todo'?'':' ghost'}" data-a="detMes" data-v="todo" aria-pressed="${selMes==='todo'}">Todo</button></div>`:'';
+  const L=selMes==='todo'?L0:L0.filter(m=>keyOf(m)===selMes);
+  const perTxt=(selMes!=='todo'&&card&&L.length)?(()=>{const R=L.filter(m=>!m.ajuste),pagos=R.filter(m=>m.key&&m.key.startsWith('k:')).reduce((a,m)=>a+m.monto,0),cg=R.filter(m=>!(m.key&&m.key.startsWith('k:'))&&m.tipo==='egreso').reduce((a,m)=>a+m.monto,0),ab=R.filter(m=>!(m.key&&m.key.startsWith('k:'))&&m.tipo==='ingreso').reduce((a,m)=>a+m.monto,0);return `<p class="small muted" style="margin:8px 0 0">${porPer?'Periodo de corte a corte. ':''}Cargos <b class="n" style="color:var(--ink)">${fmt0(cg)}</b>${ab?` · Abonos <b class="n" style="color:var(--ink)">${fmt0(ab)}</b>`:''}${pagos?` · Pagos <b class="n" style="color:var(--ink)">${fmt0(pagos)}</b>`:''}</p>`})():'';
+  const mesChips=mesesL.length>1?`<div class="chips" role="group" aria-label="${porPer?'Periodo':'Mes'}">${mesesL.slice(0,12).map(k=>`<button class="btn sm${k===selMes?'':' ghost'}" data-a="detMes" data-v="${k}" aria-pressed="${k===selMes}">${lblK(k)}</button>`).join('')}<button class="btn sm${selMes==='todo'?'':' ghost'}" data-a="detMes" data-v="todo" aria-pressed="${selMes==='todo'}">Todo</button></div>${perTxt}`:perTxt;
   const nom=card?card.nombre:a.nombre;
   const row=m=>{
     let sgn,cls='',lab;
@@ -3011,7 +3036,7 @@ function vDetalle(){
   const face=card?cardArticle(card,t,all,false):cuentaFace(a,false);
   return `<div><button class="back" data-a="detBack">‹ Tarjetas</button><header class="top"><div><h1>${esc(nom)}</h1></div><span class="hb">${a?(a.tipo==='efectivo'?'<button class="btn sm" data-a="efCuadrar">Cuadrar</button>':'<button class="btn sm" data-a="ctaCuadrar" data-id="'+a.id+'">Cuadrar</button>'):'<button class="btn sm" data-a="tarCuadrar" data-id="'+card.id+'">Cuadrar</button>'}<button class="btn ghost sm" data-a="${card?'editCard':'editCuenta'}" data-id="${ui.det}">Editar</button></span></header></div>
   ${face}
-  <div class="chips" style="margin:10px 0 2px"><button class="btn" data-a="stDesde" data-id="${ui.det}" data-k="${card?'c':'a'}">Subir estado de cuenta</button></div>
+  <div class="chips" style="margin:10px 0 2px"><button class="btn" data-a="stDesde" data-id="${ui.det}" data-k="${card?'c':'a'}">Subir estado de cuenta</button>${undoList().length?'<button class="btn ghost" data-a="verUndo">Deshacer una carga</button>':''}</div>
   ${detMetricsHTML(ui.det)}
   <section class="sect"><h2>Movimientos<small>${L.length?L.length+(L.length>80?' · últimos 80':''):''}</small></h2>${mesChips}${L.length?L.slice(0,80).map(row).join(''):'<div class="empty"><b>Sin movimientos todavía</b>Cuando registres un gasto, un pago o subas un estado de cuenta con esta '+(card?'tarjeta':'cuenta')+', aparecen aquí.</div>'}</section>`;
 }
@@ -3095,6 +3120,7 @@ function vEstado(){
     <div class="fld" style="margin-bottom:14px"><label for="st_cuenta">¿De qué cuenta es el estado?</label><select id="st_cuenta" data-st="cuenta">${cuentas.map(([k,l])=>`<option value="${esc(k)}" ${ST.cuenta===k?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
     <label class="drop" id="drop" style="display:block;cursor:pointer"><b style="display:block;color:var(--ink);font:700 17px var(--f-display)">${ST.busy?'Leyendo…':'Elige el PDF o el CSV'}</b><span>o arrástralo aquí. Puedes elegir varios meses a la vez.</span><input id="stfile" type="file" accept=".pdf,.csv,.txt,application/pdf,text/csv" multiple hidden></label>
     ${ST.needPw?`<div class="fld" style="margin-top:12px"><label for="st_pw">Contraseña del PDF</label><input id="st_pw" type="password" data-st="pw" value="${esc(ST.pw)}" autocomplete="off"></div><button class="btn sm" style="margin-top:8px" data-a="stRetry">Abrir con contraseña</button>`:''}
+    ${undoBox()}
     ${S.ultReemplazo&&(S.ultReemplazo.quitados||[]).length+(S.ultReemplazo.nuevos||[]).length?`<div class="box" style="margin-top:12px"><div class="small">Último reemplazo (${dshort(S.ultReemplazo.fecha)}): se quitaron ${(S.ultReemplazo.quitados||[]).length} movimientos tuyos y se guardaron ${(S.ultReemplazo.nuevos||[]).length} del estado.</div><button class="btn ghost sm" style="margin-top:8px" data-a="deshacerReemplazo">Deshacer el reemplazo</button></div>`:''}
     ${ST.msg?`<div class="alert ${ST.msgTone==='bad'?'bad':ST.msgTone==='warn'?'warn':'info'}" style="margin-top:12px">${esc(ST.msg)}</div>${ST.msgTone==='bad'||ST.msgTone==='warn'||ST.scanned?`<div class="hacts" style="margin-top:8px"><button class="btn" data-a="waDiag">Mandar por WhatsApp</button><button class="btn ghost" data-a="copyDiag">Copiar detalles</button></div><p class="small muted">Solo se envían datos técnicos (banco, tamaño, error). Nada de montos ni cuentas.</p>`:''}`:''}
     ${ST.scanned&&ST.doc?`<div class="box" style="margin-top:12px"><h2 style="font-size:16px">Es un PDF escaneado</h2><p class="small muted" style="margin:0 0 10px">Puedo leerlo aquí mismo, en tu dispositivo, con reconocimiento de texto. No se envía a ningún lado. La primera vez descarga el lector (unos 10 MB) y puede tardar un par de minutos.</p><button class="btn sm" data-a="stOcr" ${ST.busy?'disabled':''}>Leer en mi dispositivo</button></div>`:''}
@@ -3111,14 +3137,14 @@ function vRevision(){
   const sumC=r2(rows.filter(r=>r.tipo==='cargo').reduce((s,r)=>s+r.monto,0)),sumA=r2(rows.filter(r=>r.tipo==='abono').reduce((s,r)=>s+r.monto,0));
   const okC=mt.totalCargos!=null?Math.abs(sumC-mt.totalCargos)<=.5:null,okA=mt.totalAbonos!=null?Math.abs(sumA-mt.totalAbonos)<=.5:null;
   const chk=(okC===null&&okA===null)?'':(okC!==false&&okA!==false)?`<div class="alert good" style="margin-bottom:14px">Los totales cuadran con los del estado: cargos ${fmt(sumC)}${mt.totalAbonos!=null?` y abonos ${fmt(sumA)}`:''}.</div>`:`<div class="alert warn" style="margin-bottom:14px"><b>Ojo, los totales no cuadran.</b> ${okC===false?`Los cargos que leí suman ${fmt(sumC)} y el estado dice ${fmt(mt.totalCargos)}. `:''}${okA===false?`Los abonos que leí suman ${fmt(sumA)} y el estado dice ${fmt(mt.totalAbonos)}. `:''}Puede faltar o sobrar algún movimiento: revisa la lista contra tu estado.</div>`;
-  return `<div class="alert info" style="margin-bottom:14px">Revisa antes de guardar. Nada se guarda hasta que confirmes. ${esc(ST.file||'')}${mt.banco?` Lo reconocí como un estado de ${esc(mt.banco)}.`:''}${ST.ocr?' Lo leí con reconocimiento de texto, así que verifica los montos.':''}${ST.nEstados?` Junté ${ST.nEstados} estados de cuenta.`:''}${ST.avisoCuenta?' '+esc(ST.avisoCuenta):''}${ST.aviso?` No pude usar: ${esc(ST.aviso)}.`:''}<div class="fld" style="margin-top:10px"><label for="st_cuenta2">Este estado es de</label><select id="st_cuenta2" data-st="cuenta">${stCuentasOpts().map(([k,l])=>`<option value="${esc(k)}" ${ST.cuenta===k?'selected':''}>${esc(l)}</option>`).join('')}</select></div></div>${chk}${rows.length===0?'<div class="alert warn" style="margin-bottom:14px">No pude leer los movimientos de este estado, pero sí los datos de la tarjeta. Aplícalos abajo. Si quieres los movimientos, puedes pegarlos o subir un CSV después.</div>':''}${(!isCard&&mt.resumen&&mt.resumen.saldoFin!=null)?`<div class="box" style="margin-bottom:14px"><h2 style="font-size:16px">Saldo del estado</h2><div class="kv"><span>Saldo final según el estado</span><span class="n">${fmt(mt.resumen.saldoFin)}</span></div><div class="kv"><span>Saldo que tienes en la app</span><span class="n">${fmt((acc(stAcc())||{}).saldo||0)}</span></div><div class="small muted" style="margin:8px 0">Si no coinciden, puedes cuadrarlo: la diferencia se anota como ajuste, sin contar como gasto ni ingreso.</div><button class="btn sm" data-a="stCuadraSaldo">Cuadrar mi saldo</button></div>`:''}
+  return `<div class="alert info" style="margin-bottom:14px">Revisa antes de guardar. Nada se guarda hasta que confirmes. ${esc(ST.file||'')}${mt.banco?` Lo reconocí como un estado de ${esc(mt.banco)}.`:''}${ST.ocr?' Lo leí con reconocimiento de texto, así que verifica los montos.':''}${ST.nEstados?` Junté ${ST.nEstados} estados de cuenta.`:''}${stEsAntiguo()?' Ojo: es más viejo que el último estado que subiste a esta tarjeta. Se guardan sus movimientos como historial y no cambia el saldo ni los datos de la tarjeta.':''}${ST.avisoCuenta?' '+esc(ST.avisoCuenta):''}${ST.aviso?` No pude usar: ${esc(ST.aviso)}.`:''}<div class="fld" style="margin-top:10px"><label for="st_cuenta2">Este estado es de</label><select id="st_cuenta2" data-st="cuenta">${stCuentasOpts().map(([k,l])=>`<option value="${esc(k)}" ${ST.cuenta===k?'selected':''}>${esc(l)}</option>`).join('')}</select></div></div>${chk}${rows.length===0?'<div class="alert warn" style="margin-bottom:14px">No pude leer los movimientos de este estado, pero sí los datos de la tarjeta. Aplícalos abajo. Si quieres los movimientos, puedes pegarlos o subir un CSV después.</div>':''}${(!isCard&&mt.resumen&&mt.resumen.saldoFin!=null)?`<div class="box" style="margin-bottom:14px"><h2 style="font-size:16px">Saldo del estado</h2><div class="kv"><span>Saldo final según el estado</span><span class="n">${fmt(mt.resumen.saldoFin)}</span></div><div class="kv"><span>Saldo que tienes en la app</span><span class="n">${fmt((acc(stAcc())||{}).saldo||0)}</span></div><div class="small muted" style="margin:8px 0">Si no coinciden, puedes cuadrarlo: la diferencia se anota como ajuste, sin contar como gasto ni ingreso.</div><button class="btn sm" data-a="stCuadraSaldo">Cuadrar mi saldo</button></div>`:''}
   <div class="chips" style="margin-bottom:14px"><span class="pill good">${n('nuevo')} nuevos</span><span class="pill good">${n('programado')} coinciden con pagos programados</span><span class="pill warn">${n('registrado')+n('visto')} ya estaban</span>${n('pagoTarjeta')?`<span class="pill info">${n('pagoTarjeta')} pagos a la tarjeta</span>`:''}</div>
   ${card&&(mt.pagoSinIntereses!=null||mt.saldoTotal!=null||mt.pagoMinimo!=null||(mt.msi&&mt.msi.length))?`<div class="box" style="margin-bottom:14px"><h2 style="font-size:16px">Datos de la tarjeta que encontré</h2>${mt.pagoSinIntereses!=null?`<div class="kv"><span>Pago para no generar intereses</span><span class="n">${fmt(mt.pagoSinIntereses)}</span></div>`:''}${mt.pagoMinimo!=null?`<div class="kv"><span>Pago mínimo</span><span class="n">${fmt(mt.pagoMinimo)}</span></div>`:''}${(()=>{const sc=saldoCalc(card,mt);if(!sc)return '';return `<div class="kv"><span>Saldo total</span><span class="n">${fmt(sc.total)}</span></div>${sc.pago!=null?`<div class="small muted" style="margin:-2px 0 6px">${sc.incluye?'Es el saldo total que marca tu estado, e incluye lo que falta a meses.':`Pago para no generar intereses ${fmt(sc.pago)} + compras a meses por pagar ${fmt(sc.msi)}.`}</div>`:''}`})()}${(mt.msi||[]).length?`<div class="small muted" style="margin:10px 0 4px">Compras a meses</div>${mt.msi.map(q=>`<div class="kv"><span>${esc(q.concepto)}</span><span class="n">${fmt(q.mensual)} al mes · ${q.remaining>0?'faltan '+q.remaining:'liquidada'}</span></div>`).join('')}`:''}${mt.fechaCorte?`<div class="kv"><span>Fecha de corte</span><span>${dnice(mt.fechaCorte)}</span></div>`:''}${mt.fechaLimite?`<div class="kv"><span>Fecha límite de pago</span><span>${dnice(mt.fechaLimite)}</span></div>`:''}<div class="small muted" style="margin:8px 0">Compáralos con tu estado antes de aplicarlos.</div><button class="btn sm" data-a="aplicarMeta">Aplicar a ${esc(card.nombre)}</button></div>`:''}
   ${ST.missing.length?`<div class="alert warn" style="margin-bottom:14px"><b>Domiciliados que no vi en este estado:</b> ${ST.missing.map(m=>`${esc(m.item.nombre)} (esperado el ${dshort(m.date)})`).join(', ')}. Puede que se cobren en otra cuenta o que ya no estén activos.</div>`:''}
   ${ST.domis.length?`<section style="margin-bottom:14px"><h2>Posibles domiciliaciones<small>cobros que parecen automáticos</small></h2>${ST.domis.map((d,i)=>`<div class="row nochk"><div class="rmain" style="grid-column:1 / 3"><div class="rname">${esc(d.nombre)}</div><div class="rsub">${d.why.map(esc).join('. ')}.${d.existing?` Ya lo tienes como "${esc(d.exNombre)}"${d.exDom?' y está marcado como domiciliado':''}.`:''}</div></div><div class="ramt">${fmt(d.monto)}</div><div class="ract">${d.existing?(d.exDom?'<span class="pill good">Ya registrado</span>':`<button class="btn ghost sm" data-a="domiMarcar" data-i="${i}">Marcar como domiciliado</button>`):`<button class="btn sm" data-a="domiAgregar" data-i="${i}">Agregar a Pagos</button>`}</div></div>`).join('')}</section>`:''}
   <section><h2>Movimientos del estado<small>${rows.length} encontrados</small></h2><div class="tbl"><table><thead><tr><th>Guardar</th><th>Fecha</th><th>Descripción</th><th class="r">Monto</th><th>Categoría</th><th>Estado</th></tr></thead><tbody>${rows.map(r=>`<tr><td><input type="checkbox" data-r="${r.id}" data-rf="inc" ${r.inc?'checked':''} aria-label="Guardar ${esc(r.desc)}"></td><td>${dshort(r.fecha)}</td><td><input type="text" data-r="${r.id}" data-rf="desc" value="${esc(r.desc)}" aria-label="Descripción"></td><td class="r n" style="color:${r.tipo==='abono'?'var(--good)':'inherit'}">${r.tipo==='abono'?'+':'−'}${fmt(r.monto)}</td><td><select data-r="${r.id}" data-rf="cat" aria-label="Categoría">${catOptsRow(r)}</select></td><td>${flagPill(r)}</td></tr>`).join('')}</tbody></table></div></section>
-  ${(()=>{const R=reemplazoCandidatos(),per=reemplazoPeriodo(),tot=R.reduce((x,m)=>x+(+m.monto||0),0);return `<div class="box" style="margin-top:16px"><label class="chk-l"><input type="checkbox" data-st="reemplazar" ${ST.reemplazar?'checked':''}> Sustituir lo que anoté en este periodo por lo del estado</label><div class="small muted" style="margin:6px 0">${ST.reemplazar?(R.length?`Se quitarán <b>${R.length}</b> movimientos que anotaste del ${dshort(per[0])} al ${dshort(per[1])} (${fmt(tot)}) y se guardarán los del estado. Así se corrigen montos mal anotados y no se duplica nada. No se tocan pagos programados, de grupos, compras a meses ni notas de Wallet.`:'No tienes nada anotado en ese periodo: solo se guardan los del estado.'):'Apagado: se agregan solo los que no encuentre ya anotados.'}</div>${ST.reemplazar&&R.length?`<details><summary class="small">Ver lo que se quitaría</summary>${R.slice(0,30).map(m=>`<div class="kv"><span>${dshort(m.fecha)} · ${esc(m.desc||m.cat||'')}</span><span class="n">${fmt(m.monto)}</span></div>`).join('')}${R.length>30?`<div class="small muted">y ${R.length-30} más</div>`:''}</details>`:''}</div>`})()}
-  <div class="box" style="margin-top:16px"><label class="chk-l"><input type="checkbox" data-st="actualizarSaldo" ${ST.actualizarSaldo||ST.reemplazar?'checked':''} ${ST.reemplazar?'disabled':''}> Actualizar ${isCard?'el saldo de la tarjeta':'mi saldo disponible'} con estos movimientos</label><div class="small muted" style="margin:6px 0 12px">Déjalo apagado si ya cuadraste tu saldo con el banco. Prende solo si los movimientos son posteriores a la última vez que lo actualizaste.</div><div class="chips"><button class="btn" data-a="stConfirm">Guardar ${inc} movimientos</button><button class="btn ghost" data-a="stCancel">Cancelar</button></div></div>`;
+  ${(()=>{const R=reemplazoCandidatos(),per=reemplazoPeriodo(),tot=R.reduce((x,m)=>x+(+m.monto||0),0);return `<div class="box" style="margin-top:16px"><label class="chk-l"><input type="checkbox" data-st="reemplazar" ${ST.reemplazar?'checked':''} ${stEsAntiguo()?'disabled':''}> Sustituir lo que anoté en este periodo por lo del estado</label><div class="small muted" style="margin:6px 0">${ST.reemplazar?(R.length?`Se quitarán <b>${R.length}</b> movimientos que anotaste del ${dshort(per[0])} al ${dshort(per[1])} (${fmt(tot)}) y se guardarán los del estado. Así se corrigen montos mal anotados y no se duplica nada. No se tocan pagos programados, de grupos, compras a meses ni notas de Wallet.`:'No tienes nada anotado en ese periodo: solo se guardan los del estado.'):'Apagado: se agregan solo los que no encuentre ya anotados.'}</div>${ST.reemplazar&&R.length?`<details><summary class="small">Ver lo que se quitaría</summary>${R.slice(0,30).map(m=>`<div class="kv"><span>${dshort(m.fecha)} · ${esc(m.desc||m.cat||'')}</span><span class="n">${fmt(m.monto)}</span></div>`).join('')}${R.length>30?`<div class="small muted">y ${R.length-30} más</div>`:''}</details>`:''}</div>`})()}
+  <div class="box" style="margin-top:16px"><label class="chk-l"><input type="checkbox" data-st="actualizarSaldo" ${ST.actualizarSaldo||ST.reemplazar?'checked':''} ${(ST.reemplazar||stEsAntiguo())?'disabled':''}> Actualizar ${isCard?'el saldo de la tarjeta':'mi saldo disponible'} con estos movimientos</label><div class="small muted" style="margin:6px 0 12px">Déjalo apagado si ya cuadraste tu saldo con el banco. Prende solo si los movimientos son posteriores a la última vez que lo actualizaste.</div><div class="chips"><button class="btn" data-a="stConfirm">Guardar ${inc} movimientos</button><button class="btn ghost" data-a="stCancel">Cancelar</button></div></div>`;
 }
 
 function vGrupos(){
@@ -4164,6 +4190,8 @@ const A={
   closeModal:()=>closeModal(),
   mdel:()=>{M.confirm=true;renderModal()},mdelno:()=>{M.confirm=false;renderModal()},
   mdelok:()=>{const f=M.onDel;closeModal();f()},
+  deshacerCarga:el=>deshacerCarga(+el.dataset.i),
+  verUndo:()=>{ST=newST();ui.tab='mov';ui.sub.mov='estado';ui.det=null;saveUI();render();window.scrollTo(0,0)},
   stRetry:()=>{if(ST.pendingFiles)stHandleFiles(ST.pendingFiles);else if(ST.pendingFile)stHandleFile(ST.pendingFile)},stDesde:el=>{const a=el.dataset.k==='a';ST=newST();ST.cuenta=a?'acc:'+el.dataset.id:el.dataset.id;ui.tab='mov';ui.sub.mov='estado';render()},
   stPaste:()=>stPaste(),stClaude:()=>stClaude(),stOcr:()=>stOcr(),stConfirm:()=>confirmImport(),
   stCancel:()=>{ST=newST();render()},aplicarMeta:()=>aplicarMeta(),
