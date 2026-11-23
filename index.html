@@ -79,11 +79,15 @@ nav.rail button[aria-current="page"]{color:var(--accent);font-weight:600}
 .cal{display:flex;flex-direction:column;gap:4px}
 .cal .ch,.cal .cw{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}
 .cal .ch span{text-align:center;font-size:12px;color:var(--muted)}
+.cd{min-height:76px}
+.cps{display:flex;flex-direction:column;gap:2px;align-items:center}
+.cpill{font:700 10px var(--f-body);font-style:normal;padding:1px 6px;border-radius:8px;line-height:14px;letter-spacing:.02em}.cpill.done{opacity:.45}
 .cd{display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 0 5px;border:1px solid transparent;border-radius:12px;background:transparent;color:var(--ink);min-height:56px;min-width:0}
 .cd b{font:600 15px var(--f-display);width:26px;height:26px;line-height:26px;border-radius:50%;text-align:center}
 .cd.hoy b{background:var(--accent);color:var(--accent-ink)}
 .cd.sel{border-color:var(--ring)}
-.cd.out{opacity:.45}
+.cd.fut b{color:var(--muted)}
+.cd.sel:not(.hoy){border-color:var(--ring)}
 .cd .cn{font-size:11px;font-weight:600;color:var(--muted);line-height:13px;min-height:13px}.cd .cn.neg{color:var(--bad)}.cd .cn.pos{color:var(--good)}
 .cd .cb{width:22px;height:3px;border-radius:2px;background:transparent}
 .cd .cb.g{background:color-mix(in srgb,var(--good) 60%,transparent)}.cd .cb.a1{background:color-mix(in srgb,var(--warn,#C98A00) 50%,transparent)}.cd .cb.a2{background:var(--warn,#C98A00)}
@@ -3444,42 +3448,32 @@ function calDetalle(sel,t,D,m){
   if(s.tar)parts.push(`cargaste ${fmt0(s.tar)} a tarjetas`);
   const nom=sel===t?'Hoy':cap(fechaLarga(sel));
   let tx=`${nom}: ${parts.length?parts.join(', '):'sin movimientos'}.`;
-  if(D&&s.debo!=null){
-    const prev=addDays(sel,-1),a=prev>=D.minD?deboAl(D,prev):null;
-    if(a!=null&&Math.abs(a-s.debo)>.5)tx+=` Debías ${fmt0(a)} en tarjetas y ${sel===t?'ahora debes':'quedaste en'} ${fmt0(s.debo)}.`;
-    else tx+=` En tarjetas ${sel===t?'debes':'debías'} ${fmt0(s.debo)}.`;
-  }
+  if(sel===t&&D&&s.debo!=null)tx+=` En tarjetas debes ${fmt0(s.debo)}.`;
   return tx;
 }
 function calHTML(m){
-  const t=m.t,D=deboDia(),pm=parse(t),full=!!ui.calFull;
-  const mon=d=>addDays(d,-((wday(d)+6)%7));
-  let start,end;
-  if(full){const f=`${pm.y}-${String(pm.m+1).padStart(2,'0')}-01`;start=mon(f);end=addDays(mon(clampDay(pm.y,pm.m,31)),6)}
-  else{start=mon(addDays(t,-7));end=addDays(start,13)}
-  const ds={};
-  for(let d=start;d<=end;d=addDays(d,1))if(d<=t)ds[d]=diaStats(d,D);
-  const mx=Math.max(0,...Object.values(ds).map(x=>x.debo||0));
+  const t=m.t,D=deboDia();
+  const start=addDays(t,-((wday(t)+6)%7)-7),end=addDays(start,13);
   const sel=ui.calSel&&ui.calSel>=start&&ui.calSel<=end?ui.calSel:t;
+  const cp={};instances(start,end).filter(i=>i.kind==='card').forEach(i=>{(cp[i.date]=cp[i.date]||[]).push(i)});
   const wk=[];
   for(let d=start;d<=end;){
     const row=[];
     for(let k=0;k<7;k++,d=addDays(d,1)){
-      const p=parse(d);let txt='&nbsp;',cls='',bc='';
-      if(d<=t){const s=ds[d],net=s.ent-s.sal;
+      const p=parse(d);let txt='&nbsp;',cls='';
+      if(d<=t){const s=diaStats(d,D),net=s.ent-s.sal;
         if(s.ent||s.sal){txt=(net>=0?'+':'−')+kc(net);cls=net<0?'neg':'pos'}else if(s.tar)txt='•';
-        if(s.debo!=null)bc=(mx<=0||s.debo<=0)?'g':s.debo>=mx*.75?'a2':s.debo>=mx*.55?'a1':'g';
       }else{const pt=m.pts[dnum(d)-dnum(t)];
         if(pt&&pt.ev.length){const net=pt.ev.reduce((a,e)=>a+e.delta,0);txt=net?(net>0?'+':'−')+kc(net):'•';cls=net<0?'neg':net>0?'pos':''}}
-      row.push(`<button class="cd${d===t?' hoy':''}${d===sel?' sel':''}${monthKey(d)!==monthKey(t)?' out':''}" data-a="calSel" data-d="${d}" aria-label="${esc(fechaLarga(d))}" aria-pressed="${d===sel}"><b>${p.d}</b><span class="cn ${cls}">${txt}</span><i class="cb ${bc}"></i></button>`);
+      const pills=(cp[d]||[]).slice(0,2).map(i=>{const[c1,c2]=cardColors(i.ref),lt=isLight(c1,c2);return `<i class="cpill${isDone(i)?' done':''}" style="background:${c1};color:${lt?'#1B1B1B':'#fff'}">${esc(cardMono(i.ref))}</i>`}).join('');
+      const tarj=(cp[d]||[]).map(i=>(isDone(i)?'pago a ':'vence ')+i.ref.nombre).join(', ');
+      row.push(`<button class="cd${d===t?' hoy':''}${d===sel?' sel':''}${d>t?' fut':''}" data-a="calSel" data-d="${d}" aria-label="${esc(fechaLarga(d))}${tarj?', '+esc(tarj):''}" aria-pressed="${d===sel}"><b>${p.d}</b><span class="cn ${cls}">${txt}</span>${pills?`<span class="cps">${pills}</span>`:''}</button>`);
     }
     wk.push(`<div class="cw">${row.join('')}</div>`);
   }
-  const mes=new Date(pm.y,pm.m,1,12).toLocaleDateString('es-MX',{month:'long'});
-  return `<section class="sect"><h2>${mes.charAt(0).toUpperCase()+mes.slice(1)}<small><button class="link" data-a="calMes">${full?'Ver menos':'Ver mes'}</button></small></h2>
-  <div class="cal"><div class="ch" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>${wk.join('')}</div>
-  <p class="cdet" aria-live="polite">${calDetalle(sel,t,D,m)}</p>
-  ${D?`<p class="small muted" style="margin:6px 0 0">La barrita es lo que debías en tarjetas al cerrar el día: amarilla, más; verde, menos.</p>`:''}</section>`;
+  return `<section class="sect"><h2>Tus días<small>${dshort(start)} – ${dshort(end)}</small></h2>
+  <div class="cal"><div class="ch" aria-hidden="true"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>${wk.join('')}</div>
+  <p class="cdet" aria-live="polite">${calDetalle(sel,t,D,m)}</p></section>`;
 }
 
 /* ---- patrimonio ---- */
