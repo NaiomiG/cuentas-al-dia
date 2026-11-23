@@ -2965,7 +2965,7 @@ function vTarjetas(){
     return head+sum+`<p class="small muted" style="margin:0">Fija una para dejarla siempre arriba o sube las que más usas. ${Array.isArray(S.orden)?'<button class="link" data-a="ordAuto">Ordenar solas por uso</button>':'Ahora van ordenadas solas por uso.'}</p>`+
     L.map((x,i)=>{const[c1]=cardColors(x.k==='a'?{...x.o,tipo:x.o.tipo||'debito'}:x.o);return `<div class="row nochk"><div class="rdate"><i class="cdot" style="background:${c1}"></i></div><div class="rmain"><div class="rname">${esc(x.nom)}</div><div class="rsub">${x.tipo} · ${x.uso} movimientos en 90 días</div></div><div class="ract"><button class="btn${S.fijada===x.id?'':' ghost'} sm" data-a="ordFijar" data-id="${x.id}" aria-pressed="${S.fijada===x.id}">${S.fijada===x.id?'Fijada':'Fijar'}</button> <button class="btn ghost sm" data-a="ordMove" data-id="${x.id}" data-d="-1" ${i===0?'disabled':''} aria-label="Subir ${esc(x.nom)}">▲</button> <button class="btn ghost sm" data-a="ordMove" data-id="${x.id}" data-d="1" ${i===L.length-1?'disabled':''} aria-label="Bajar ${esc(x.nom)}">▼</button></div></div>`}).join('')+tools;
   }
-  return head+sum+(L.length?L.map(x=>x.k==='c'?cardResumen(x.o,t,all,x.uso):cuentaFace(x.o,true)).join(''):'<div class="empty"><b>Sin tarjetas todavía</b>Toca + para agregar una y ver su corte y su fecha de pago.</div>')+tools;
+  return head+sum+(L.length?L.map(x=>x.k==='c'?cardResumen(x.o,t,all,x.uso):cuentaResumen(x.o,x.uso)).join(''):'<div class="empty"><b>Sin tarjetas todavía</b>Toca + para agregar una y ver su corte y su fecha de pago.</div>')+tools;
 }
 
 function vMas(){
@@ -3087,6 +3087,13 @@ function vAjustes(){
 }
 
 /* ===== vistas: cuentas, comercios, historial, ahorro y alertas ===== */
+function cuentaResumen(a,uso){
+  const x={...a,tipo:a.tipo||'debito'};
+  const tipo=(ACC_T[a.tipo]||'Cuenta')+(a.tipo==='ahorro'&&a.liq?' · disponible':'');
+  return `<article class="tc"${cardStyle(x)}><button type="button" class="tcm" data-a="verItem" data-id="${a.id}" aria-label="Ver ${esc(a.nombre)}"><div class="h"><span class="who"><span class="mono2" aria-hidden="true">${esc(cardMono(x))}</span><span><b class="nm2">${esc(a.nombre)}</b><span class="due">${esc(tipo)}${a.banco?' · '+esc(a.banco):''}</span></span></span></div>
+    <div class="h"><span><small class="lab">Saldo</small><span class="amt">${fmt0(a.saldo)}</span></span><small class="lab r">${uso} ${uso===1?'movimiento':'movimientos'}<br>en 90 días</small></div>
+    ${a.tipo==='ahorro'&&a.tasa?`<small class="lab">${rendTxt(a)}</small>`:''}</button></article>`;
+}
 function cuentaFace(a,nav){
   const x={...a,tipo:a.tipo||'debito'};
   return `<article><button class="${cardCls(x)}"${cardStyle(x)} data-a="${nav?'verItem':'editCuenta'}" data-id="${a.id}" aria-label="${nav?'Ver movimientos de':'Editar'} ${esc(a.nombre)}"><div class="nm"><span class="cn"><span class="mono" aria-hidden="true">${esc(cardMono(x))}</span>${esc(a.nombre)}</span><span class="chip" aria-hidden="true"></span></div><div><small>${esc(ACC_T[a.tipo]||'Cuenta')}${a.tipo==='ahorro'&&a.liq?' · disponible':''}${a.banco?' · '+esc(a.banco):''}</small><div class="bal">${fmt0(a.saldo)}</div>${a.tipo==='ahorro'&&a.tasa?`<small style="margin-top:6px">${rendTxt(a)}</small>`:''}</div></button></article>`;
