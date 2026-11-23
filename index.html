@@ -1074,7 +1074,7 @@ function limpiarTarjeta(id){
       if(String(v.ok||'').trim().toUpperCase()!=='BORRAR')return 'Escribe BORRAR para confirmar.';
       const ids=new Set(d.movs.map(m=>m.id));
       S.movs=S.movs.filter(m=>!ids.has(m.id));
-      c.balance=0;c.statement=null;c.minimo=null;c.msi=[];c.desde=todayISO();
+      c.balance=0;c.statement=null;c.minimo=null;c.msi=[];c.ultCorte=null;c.desde=todayISO();
       S.stmtSeen={};
       if(S.ultReemplazo)S.ultReemplazo=null;
       closeModal();commit('Datos de la tarjeta borrados. Ya puedes subir su estado de cuenta de nuevo.');
@@ -2145,6 +2145,22 @@ function suggestCat(desc,tipo){
 const titleCase=s=>{const c=s.replace(/\b(DOMICILIACION|DOMICILIADO|CARGO|RECURRENTE|PAGO|COBRO|COM|MX|SA|CV)\b/g,' ').replace(/\s+/g,' ').trim()||s;return c.toLowerCase().replace(/\b\w/g,x=>x.toUpperCase())};
 const stAcc=()=>String(ST&&ST.cuenta||'').startsWith('acc:')?ST.cuenta.slice(4):(defAcc()||{}).id;
 const stMedio=()=>isCardMedio(ST.cuenta)?ST.cuenta:stAcc();
+const stCuentasOpts=()=>[...accs().filter(isLiquid).map(a=>['acc:'+a.id,a.nombre]),...S.cards.map(c=>[c.id,'Tarjeta '+c.nombre])];
+function asignarCuentaEstado(lines,bloquear){
+  ST.avisoCuenta='';ST.bloqueo='';
+  const m=ST.meta||{},txt=_nn((lines||[]).slice(0,80).map(l=>l.text||'').join(' '));
+  const credito=m.pagoSinIntereses!=null||m.limite!=null||(m.msi&&m.msi.length)||/tarjeta de credito/.test(txt);
+  if(!credito||isCardMedio(ST.cuenta))return;
+  const esta=nm=>{nm=_nn(nm);return nm.length>=2&&new RegExp('(^|[^a-z0-9])'+nm.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'([^a-z0-9]|$)').test(txt)};
+  const sc=S.cards.map(c=>{const b=bankOf(c);let v=0;if(b&&(esta(b[1])||(b[0]==='amex'&&/american express/.test(txt))))v+=2;if(esta(c.nombre))v+=1;return{c,v}}).sort((a,b)=>b.v-a.v);
+  let pick=null;
+  if(sc.length&&sc[0].v>0&&(sc.length===1||sc[0].v>sc[1].v))pick=sc[0].c;
+  else if(S.cards.length===1)pick=S.cards[0];
+  if(pick){ST.cuenta=pick.id;ST.avisoCuenta=`Es un estado de tarjeta de crédito. Lo asigné a la tarjeta ${pick.nombre}. Si no es esa, cámbiala abajo.`;return}
+  if(!bloquear)return;
+  ST.bloqueo=S.cards.length?'Parece un estado de tarjeta de crédito, pero no supe de cuál. Elige la tarjeta en "¿De qué cuenta es el estado?" y vuelve a subir el archivo.':'Parece un estado de tarjeta de crédito. Primero agrega la tarjeta en Tarjetas (botón +) y luego sube el archivo.';
+  ST.rows=[];
+}
 function newST(){return{cuenta:'cuenta',rows:[],meta:{},stage:'elegir',msg:'',msgTone:'info',busy:false,needPw:false,file:null,doc:null,actualizarSaldo:false,pend:{},domis:[],missing:[],consent:false,pw:'',pasteText:''}}
 /* ===== sustituir el periodo del estado por lo que dice el banco ===== */
 function reemplazoPeriodo(){
@@ -2240,8 +2256,12 @@ function confirmImport(){
   }
   ST.rows.filter(r=>!r.inc&&r.flag==='registrado').forEach(r=>{S.stmtSeen[r.sig]=1});
   S.movs.sort((a,b)=>a.fecha<b.fecha?1:a.fecha>b.fecha?-1:0);
+  let extra='';
+  if(card&&tieneDatosTarjeta()&&!ST.metaAplicada){const m=ST.meta;
+    if(!m.fechaCorte||!card.ultCorte||m.fechaCorte>=card.ultCorte){aplicarMeta(true);extra='. Actualicé también los datos de la tarjeta (pago, saldo y compras a meses)'}
+    else extra='. No cambié los datos de la tarjeta porque este estado es más viejo que el último que subiste'}
   ST=newST();ui.sub.mov='lista';
-  commit(`${n} movimientos guardados${quitados?` y ${quitados} tuyos del periodo sustituidos`:''}${prog?` (${prog} marcaron un pago programado)`:''}`);
+  commit(`${n} movimientos guardados${quitados?` y ${quitados} tuyos del periodo sustituidos`:''}${prog?` (${prog} marcaron un pago programado)`:''}${extra}`);
 }
 async function stHandleFile(file){
   ST.busy=true;ST.msg='';ST.file=file.name;ST.diag={tipo:(file.name.split('.').pop()||'?').toLowerCase().slice(0,5),kb:Math.round((file.size||0)/1024)};render();
@@ -2252,16 +2272,17 @@ async function stHandleFile(file){
       if(!ST.rows.length)throw new Error('csv');
     }else if(name.endsWith('.txt')){
       const lines=(await file.text()).split(/\r?\n/).map(t=>({text:t.trim()})).filter(l=>l.text);
-      const p=parseStatement(lines);ST.rows=p.rows;ST.meta=p.meta;
+      const p=parseStatement(lines);ST.rows=p.rows;ST.meta=p.meta;asignarCuentaEstado(lines,true);
     }else{
       const r=await readPdfLines(file,ST.pw);
       ST.doc=r.doc;ST.needPw=false;Object.assign(ST.diag,{pag:r.pages,chars:r.chars,lineas:r.lines.length,ilegible:!!textoIlegible(r.lines)});
       if(r.chars<40*r.pages||textoIlegible(r.lines)){ST.rows=[];ST.scanned=true;ST.msg=r.chars<40*r.pages?'Este PDF no tiene texto que se pueda leer en tu dispositivo (parece una imagen escaneada).':'El texto de este PDF viene codificado y no se puede leer directo. Puedo leerlo como imagen en tu dispositivo.';ST.msgTone='warn'}
-      else{const p=parseStatement(r.lines);ST.rows=p.rows;ST.meta=p.meta;ST.scanned=false}
+      else{const p=parseStatement(r.lines);ST.rows=p.rows;ST.meta=p.meta;ST.scanned=false;asignarCuentaEstado(r.lines,true)}
     }
     Object.assign(ST.diag,{banco:(ST.meta&&ST.meta.banco)||'no detectado',filas:(ST.rows||[]).length,msi:((ST.meta&&ST.meta.msi)||[]).length});
     if(ST.rows.length){ST.reemplazar=ST.rows.length>=3;annotate();ST.stage='revisar';ST.msg=''}
     else if(!ST.scanned&&tieneDatosTarjeta()){ST.stage='revisar';ST.msg=''}
+    else if(!ST.scanned&&ST.bloqueo){ST.msg=ST.bloqueo;ST.msgTone='warn'}
     else if(!ST.scanned){ST.msg='No encontré movimientos en este archivo. Prueba pegando el texto del estado o con un CSV.';ST.msgTone='warn'}
   }catch(e){
     if(ST.diag)ST.diag.error=String((e&&(e.name||'')+' '+(e&&e.message||''))||'').replace(/\d{5,}/g,'#').slice(0,90);
@@ -2274,7 +2295,7 @@ async function stHandleFile(file){
 function stPaste(){
   const lines=String(ST.pasteText||'').split(/\r?\n/).map(t=>({text:t.replace(/\s+/g,' ').trim()})).filter(l=>l.text);
   if(lines.length<2){ST.msg='Pega primero el texto de los movimientos.';ST.msgTone='warn';render();return}
-  const p=parseStatement(lines);ST.rows=p.rows;ST.meta=p.meta;
+  const p=parseStatement(lines);ST.rows=p.rows;ST.meta=p.meta;asignarCuentaEstado(lines,false);
   if(!ST.rows.length){ST.msg='No encontré movimientos. Cada renglón debe empezar con la fecha, por ejemplo "05 OCT SUPERMERCADO 640.00".';ST.msgTone='warn';render();return}
   annotate();ST.stage='revisar';ST.msg='';render();
 }
@@ -2283,7 +2304,7 @@ async function stOcr(){
   ST.busy=true;ST.msg='Preparando el lector…';ST.msgTone='info';render();
   try{
     const lines=await ocrPdf(ST.doc,(p,n,fase)=>{ST.msg=fase==='lib'?'Descargando el lector (solo la primera vez, unos 10 MB)…':`Leyendo la página ${p} de ${n}…`;render()});
-    const pr=parseStatement(lines);ST.rows=pr.rows;ST.meta=pr.meta;ST.ocr=true;ST.scanned=false;
+    const pr=parseStatement(lines);ST.rows=pr.rows;ST.meta=pr.meta;ST.ocr=true;ST.scanned=false;asignarCuentaEstado(lines,false);
     if(ST.rows.length){annotate();ST.stage='revisar';ST.msg=''}
     else if(tieneDatosTarjeta()){ST.stage='revisar';ST.scanned=false;ST.msg=''}
     else{ST.scanned=true;ST.msg='No encontré movimientos en las imágenes. Prueba con un CSV o pegando el texto.';ST.msgTone='warn'}
@@ -2335,7 +2356,7 @@ function saldoCalc(c,m){
   const calc=r2(m.pagoSinIntereses+msi),inc=m.saldoTotal!=null&&m.saldoTotal>m.pagoSinIntereses+1;
   return{total:inc?m.saldoTotal:calc,pago:m.pagoSinIntereses,msi,banco:m.saldoTotal,incluye:inc};
 }
-function aplicarMeta(){
+function aplicarMeta(quiet){
   const c=cardOf(ST.cuenta);if(!c)return;const m=ST.meta;
   if(m.pagoSinIntereses!=null)c.statement=m.pagoSinIntereses;
   if(m.pagoMinimo!=null)c.minimo=m.pagoMinimo;
@@ -2344,7 +2365,7 @@ function aplicarMeta(){
   if(m.limite>0&&!(+c.limite>0))c.limite=m.limite;
   if(m.fechaCorte)c.corte=parse(m.fechaCorte).d;
   if(m.fechaLimite&&m.fechaCorte)c.diasPago=Math.max(1,dnum(m.fechaLimite)-dnum(m.fechaCorte));
-  persist();toast('Tarjeta actualizada con los datos del estado'+(aj?` (ajuste de ${fmt(Math.abs(aj))} en el saldo)`:'')+(ms&&(ms.nuevos||ms.ajust)?` (${ms.nuevos?ms.nuevos+' compra'+(ms.nuevos>1?'s':'')+' a meses nueva'+(ms.nuevos>1?'s':''):''}${ms.nuevos&&ms.ajust?' y ':''}${ms.ajust?ms.ajust+' actualizada'+(ms.ajust>1?'s':''):''})`:''));render();
+  ST.metaAplicada=true;if(m.fechaCorte)c.ultCorte=m.fechaCorte;persist();if(!quiet)toast('Tarjeta actualizada con los datos del estado'+(aj?` (ajuste de ${fmt(Math.abs(aj))} en el saldo)`:'')+(ms&&(ms.nuevos||ms.ajust)?` (${ms.nuevos?ms.nuevos+' compra'+(ms.nuevos>1?'s':'')+' a meses nueva'+(ms.nuevos>1?'s':''):''}${ms.nuevos&&ms.ajust?' y ':''}${ms.ajust?ms.ajust+' actualizada'+(ms.ajust>1?'s':''):''})`:''));render();
 }
 
 /* ===== ayuda por WhatsApp (sin datos personales) ===== */
@@ -3048,7 +3069,7 @@ function vRevision(){
   const sumC=r2(rows.filter(r=>r.tipo==='cargo').reduce((s,r)=>s+r.monto,0)),sumA=r2(rows.filter(r=>r.tipo==='abono').reduce((s,r)=>s+r.monto,0));
   const okC=mt.totalCargos!=null?Math.abs(sumC-mt.totalCargos)<=.5:null,okA=mt.totalAbonos!=null?Math.abs(sumA-mt.totalAbonos)<=.5:null;
   const chk=(okC===null&&okA===null)?'':(okC!==false&&okA!==false)?`<div class="alert good" style="margin-bottom:14px">Los totales cuadran con los del estado: cargos ${fmt(sumC)}${mt.totalAbonos!=null?` y abonos ${fmt(sumA)}`:''}.</div>`:`<div class="alert warn" style="margin-bottom:14px"><b>Ojo, los totales no cuadran.</b> ${okC===false?`Los cargos que leí suman ${fmt(sumC)} y el estado dice ${fmt(mt.totalCargos)}. `:''}${okA===false?`Los abonos que leí suman ${fmt(sumA)} y el estado dice ${fmt(mt.totalAbonos)}. `:''}Puede faltar o sobrar algún movimiento: revisa la lista contra tu estado.</div>`;
-  return `<div class="alert info" style="margin-bottom:14px">Revisa antes de guardar. Nada se guarda hasta que confirmes. ${esc(ST.file||'')}${mt.banco?` Lo reconocí como un estado de ${esc(mt.banco)}.`:''}${ST.ocr?' Lo leí con reconocimiento de texto, así que verifica los montos.':''}</div>${chk}${rows.length===0?'<div class="alert warn" style="margin-bottom:14px">No pude leer los movimientos de este estado, pero sí los datos de la tarjeta. Aplícalos abajo. Si quieres los movimientos, puedes pegarlos o subir un CSV después.</div>':''}${(!isCard&&mt.resumen&&mt.resumen.saldoFin!=null)?`<div class="box" style="margin-bottom:14px"><h2 style="font-size:16px">Saldo del estado</h2><div class="kv"><span>Saldo final según el estado</span><span class="n">${fmt(mt.resumen.saldoFin)}</span></div><div class="kv"><span>Saldo que tienes en la app</span><span class="n">${fmt((acc(stAcc())||{}).saldo||0)}</span></div><div class="small muted" style="margin:8px 0">Si no coinciden, puedes cuadrarlo: la diferencia se anota como ajuste, sin contar como gasto ni ingreso.</div><button class="btn sm" data-a="stCuadraSaldo">Cuadrar mi saldo</button></div>`:''}
+  return `<div class="alert info" style="margin-bottom:14px">Revisa antes de guardar. Nada se guarda hasta que confirmes. ${esc(ST.file||'')}${mt.banco?` Lo reconocí como un estado de ${esc(mt.banco)}.`:''}${ST.ocr?' Lo leí con reconocimiento de texto, así que verifica los montos.':''}${ST.avisoCuenta?' '+esc(ST.avisoCuenta):''}<div class="fld" style="margin-top:10px"><label for="st_cuenta2">Este estado es de</label><select id="st_cuenta2" data-st="cuenta">${stCuentasOpts().map(([k,l])=>`<option value="${esc(k)}" ${ST.cuenta===k?'selected':''}>${esc(l)}</option>`).join('')}</select></div></div>${chk}${rows.length===0?'<div class="alert warn" style="margin-bottom:14px">No pude leer los movimientos de este estado, pero sí los datos de la tarjeta. Aplícalos abajo. Si quieres los movimientos, puedes pegarlos o subir un CSV después.</div>':''}${(!isCard&&mt.resumen&&mt.resumen.saldoFin!=null)?`<div class="box" style="margin-bottom:14px"><h2 style="font-size:16px">Saldo del estado</h2><div class="kv"><span>Saldo final según el estado</span><span class="n">${fmt(mt.resumen.saldoFin)}</span></div><div class="kv"><span>Saldo que tienes en la app</span><span class="n">${fmt((acc(stAcc())||{}).saldo||0)}</span></div><div class="small muted" style="margin:8px 0">Si no coinciden, puedes cuadrarlo: la diferencia se anota como ajuste, sin contar como gasto ni ingreso.</div><button class="btn sm" data-a="stCuadraSaldo">Cuadrar mi saldo</button></div>`:''}
   <div class="chips" style="margin-bottom:14px"><span class="pill good">${n('nuevo')} nuevos</span><span class="pill good">${n('programado')} coinciden con pagos programados</span><span class="pill warn">${n('registrado')+n('visto')} ya estaban</span>${n('pagoTarjeta')?`<span class="pill info">${n('pagoTarjeta')} pagos a la tarjeta</span>`:''}</div>
   ${card&&(mt.pagoSinIntereses!=null||mt.saldoTotal!=null||mt.pagoMinimo!=null||(mt.msi&&mt.msi.length))?`<div class="box" style="margin-bottom:14px"><h2 style="font-size:16px">Datos de la tarjeta que encontré</h2>${mt.pagoSinIntereses!=null?`<div class="kv"><span>Pago para no generar intereses</span><span class="n">${fmt(mt.pagoSinIntereses)}</span></div>`:''}${mt.pagoMinimo!=null?`<div class="kv"><span>Pago mínimo</span><span class="n">${fmt(mt.pagoMinimo)}</span></div>`:''}${(()=>{const sc=saldoCalc(card,mt);if(!sc)return '';return `<div class="kv"><span>Saldo total</span><span class="n">${fmt(sc.total)}</span></div>${sc.pago!=null?`<div class="small muted" style="margin:-2px 0 6px">${sc.incluye?'Es el saldo total que marca tu estado, e incluye lo que falta a meses.':`Pago para no generar intereses ${fmt(sc.pago)} + compras a meses por pagar ${fmt(sc.msi)}.`}</div>`:''}`})()}${(mt.msi||[]).length?`<div class="small muted" style="margin:10px 0 4px">Compras a meses</div>${mt.msi.map(q=>`<div class="kv"><span>${esc(q.concepto)}</span><span class="n">${fmt(q.mensual)} al mes · ${q.remaining>0?'faltan '+q.remaining:'liquidada'}</span></div>`).join('')}`:''}${mt.fechaCorte?`<div class="kv"><span>Fecha de corte</span><span>${dnice(mt.fechaCorte)}</span></div>`:''}${mt.fechaLimite?`<div class="kv"><span>Fecha límite de pago</span><span>${dnice(mt.fechaLimite)}</span></div>`:''}<div class="small muted" style="margin:8px 0">Compáralos con tu estado antes de aplicarlos.</div><button class="btn sm" data-a="aplicarMeta">Aplicar a ${esc(card.nombre)}</button></div>`:''}
   ${ST.missing.length?`<div class="alert warn" style="margin-bottom:14px"><b>Domiciliados que no vi en este estado:</b> ${ST.missing.map(m=>`${esc(m.item.nombre)} (esperado el ${dshort(m.date)})`).join(', ')}. Puede que se cobren en otra cuenta o que ya no estén activos.</div>`:''}
@@ -4192,7 +4213,7 @@ document.addEventListener('change',e=>{
   if(el.dataset.f&&M){M.vals[el.dataset.f]=el.type==='checkbox'?el.checked:el.value;if(el.tagName==='SELECT'||el.dataset.dep!==undefined||el.type==='checkbox'){M.err='';renderModal()}return}
   if(el.dataset.r&&ST){const r=ST.rows.find(x=>x.id===el.dataset.r);if(r&&el.dataset.rf==='inc'){r.inc=el.checked;render()}else if(r&&el.dataset.rf==='cat'){r.cat=el.value;render()}return}
   if(el.dataset.st&&ST){
-    if(el.dataset.st==='cuenta'){ST.cuenta=el.value}
+    if(el.dataset.st==='cuenta'){ST.cuenta=el.value;ST.avisoCuenta='';if(ST.stage==='revisar'){const keep=ST.rows.map(r=>({id:r.id,cat:r.cat,desc:r.desc}));annotate();ST.rows.forEach(r=>{const k=keep.find(x=>x.id===r.id);if(k){r.cat=k.cat||r.cat;r.desc=k.desc}});render()}}
     else if(el.type==='checkbox'){ST[el.dataset.st]=el.checked;if(el.dataset.st==='reemplazar'){const keep=ST.rows.map(r=>({id:r.id,cat:r.cat,desc:r.desc}));annotate();ST.rows.forEach(r=>{const k=keep.find(x=>x.id===r.id);if(k){r.cat=k.cat||r.cat;r.desc=k.desc}})}render()}
     return}
   if(el.id==='stfile'&&el.files[0]){stHandleFile(el.files[0]);return}
