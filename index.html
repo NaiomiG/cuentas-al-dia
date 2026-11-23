@@ -244,6 +244,18 @@ nav.rail button[aria-current="page"]{color:var(--accent);font-weight:600}
 .cardface .cn{display:flex;align-items:center;gap:9px;min-width:0}.mono{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.22);display:inline-grid;place-items:center;font:700 11px var(--f-body);letter-spacing:.02em;flex:none}
 .cardface.cx{background:linear-gradient(135deg,var(--c1),var(--c2));color:var(--ct,#fff)}
 .cardface.cx .prog i{background:var(--ct,#fff)}
+.tc{border-radius:22px;border:1px solid color-mix(in srgb,var(--c1) 45%,transparent);background:linear-gradient(145deg,color-mix(in srgb,var(--c1) 26%,transparent),color-mix(in srgb,var(--c2) 8%,transparent));-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);padding:16px 18px;margin-bottom:12px;transition:transform .12s ease-out}
+.tc:active{transform:scale(.99)}
+.tc .tcm{background:none;border:0;padding:0;margin:0;text-align:left;color:inherit;font:inherit;width:100%;display:flex;flex-direction:column;gap:12px;cursor:pointer}
+.tc .h{display:flex;justify-content:space-between;gap:12px;align-items:flex-end}
+.tc .who{display:flex;align-items:center;gap:10px;min-width:0}.tc .who>span:last-child{display:flex;flex-direction:column;gap:2px;min-width:0}
+.tc .mono2{width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,var(--c1),var(--c2));color:var(--ct,#fff);display:grid;place-items:center;font:700 12px var(--f-body);flex:none}
+.tc .nm2{font:600 17px var(--f-display)}
+.tc .due{font-size:13px;color:var(--muted)}.tc .due.soon{color:var(--warn)}.tc .due.bad{color:var(--bad)}
+.tc .lab{display:block;font-size:12px;color:var(--muted)}.tc .lab.r{text-align:right}
+.tc .amt{display:block;font:600 28px var(--f-display);letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ink)}
+.tc .tbar{height:6px;border-radius:3px;background:color-mix(in srgb,var(--ink) 14%,transparent);overflow:hidden;margin-bottom:6px}.tc .tbar i{display:block;height:100%;border-radius:3px;background:var(--c1)}.tc .tbar i.hi{background:var(--warn)}
+.tc .tcv{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;color:var(--bad)}
 .cardface.lt::after{background:rgba(0,0,0,.06)}.cardface.lt .mono{background:rgba(0,0,0,.12)}.cardface.lt .chip{background:rgba(0,0,0,.25)}.cardface.lt .prog{background:rgba(0,0,0,.14)}
 .sw2row{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0 4px;align-items:center}.sw2{width:36px;height:36px;border-radius:50%;border:2px solid var(--bg);box-shadow:0 0 0 1px var(--line)}.sw2row .sep{width:1px;height:26px;background:var(--line)}
 .pick2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}.pick2 label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}.pick2 input[type=color]{width:100%;height:44px;padding:2px;border-radius:12px;border:1px solid var(--line);background:var(--surface2)}
@@ -2892,6 +2904,17 @@ function cardArticle(c,t,all,nav){
       <details class="small muted" style="margin:6px 0 2px"><summary style="cursor:pointer">¿Qué significa cada monto?</summary><div style="margin-top:6px"><b style="color:var(--ink)">Para no generar intereses:</b> lo que debes pagar antes de la fecha límite para que no te cobren intereses. Incluye lo del periodo y la mensualidad de tus compras a meses.<br><b style="color:var(--ink)">Pago mínimo:</b> lo menos que puedes pagar sin caer en mora. Si pagas solo eso, el resto genera intereses.<br><b style="color:var(--ink)">Saldo total (lo que debes):</b> todo lo que le debes al banco, incluidas las mensualidades futuras de tus compras a meses. No tienes que pagarlo de una vez.</div></details>
       ${(c.msi||[]).map(q=>{const hechos=q.meses-q.remaining,end=shiftMonth(monthKey(t),Math.max(0,q.remaining-1)).split('-').map(Number);return `<div class="msi"><div><b>${esc(q.concepto)}</b><span class="muted small">${fmt0(msiMensual(q))} al mes · ${q.remaining>0?`faltan ${q.remaining}`:'liquidado'}</span></div><button class="link" data-a="editMsi" data-id="${c.id}" data-p="${q.id}">Editar</button><div class="prog ${q.remaining===0?'good':''}"><i style="width:${(hechos/q.meses*100).toFixed(0)}%"></i></div></div>`}).join('')}
       <button class="link" style="margin-top:10px" data-a="addMsi" data-id="${c.id}">Agregar compra a meses</button> <button class="link" style="margin:10px 0 0 14px" data-a="tarCuadrar" data-id="${c.id}">Cuadrar con mi estado</button> <button class="link" style="margin:10px 0 0 14px;color:var(--bad)" data-a="tarLimpiar" data-id="${c.id}">Borrar sus datos</button></div></article>`}
+function cardResumen(c,t,all,uso){
+  const u=c.limite>0?c.balance/c.limite*100:0,pend=all.filter(i=>i.kind==='card'&&i.ref.id===c.id&&!i.rec),venc=pend.filter(i=>i.date<t),nx=pend.find(i=>i.date>=t);
+  const dias=nx?dnum(nx.date)-dnum(t):null;
+  const due=nx?`<span class="due${dias<=5?' soon':''}">Vence ${dshort(nx.date)} · ${rel(nx.date)}</span>`:venc.length?`<span class="due bad">Pago vencido sin confirmar</span>`:`<span class="due">Falta capturar el corte</span>`;
+  const monto=nx?(nx.unk?'Por calcular':fmt0(nx.amount)):fmt0(c.statement>0?c.statement:c.balance);
+  const lab=nx&&nx.est?'Siguiente pago (aprox.)':(c.statement>0?'Pago para no generar intereses':'Siguiente pago');
+  return `<article class="tc"${cardStyle(c)}><button type="button" class="tcm" data-a="verItem" data-id="${c.id}" aria-label="Ver ${esc(c.nombre)}"><div class="h"><span class="who"><span class="mono2" aria-hidden="true">${esc(cardMono(c))}</span><span><b class="nm2">${esc(c.nombre)}</b>${due}</span></span></div>
+    <div class="h"><span><small class="lab">${lab}</small><span class="amt">${monto}</span></span><small class="lab r">${uso} ${uso===1?'movimiento':'movimientos'}<br>en 90 días</small></div>
+    <div><div class="tbar"><i class="${u>60?'hi':''}" style="width:${Math.min(100,u).toFixed(0)}%"></i></div><small class="lab">${c.limite>0?`${u.toFixed(0)}% del límite usado`:'Sin límite capturado'}</small></div></button>
+    ${venc.length?`<div class="tcv">${venc.map(i=>`<span>Sin confirmar · ${dshort(i.date)} · ${fmt0(i.amount)}</span><button class="link" data-a="pay" data-k="${i.key}">Ya lo pagué</button>`).join('')}</div>`:''}</article>`;
+}
 function usoCuenta(id){const lim=addDays(todayISO(),-90);return S.movs.filter(m=>m.fecha>=lim&&(m.cuenta===id||m.metodo===id)).length}
 function itemsTarjetas(){
   const L=[...S.cards.map(c=>({k:'c',id:c.id,o:c,nom:c.nombre,tipo:'Crédito'})),...accsV().map(a=>({k:'a',id:a.id,o:a,nom:a.nombre,tipo:ACC_T[a.tipo]||'Cuenta'}))];
@@ -2942,7 +2965,7 @@ function vTarjetas(){
     return head+sum+`<p class="small muted" style="margin:0">Fija una para dejarla siempre arriba o sube las que más usas. ${Array.isArray(S.orden)?'<button class="link" data-a="ordAuto">Ordenar solas por uso</button>':'Ahora van ordenadas solas por uso.'}</p>`+
     L.map((x,i)=>{const[c1]=cardColors(x.k==='a'?{...x.o,tipo:x.o.tipo||'debito'}:x.o);return `<div class="row nochk"><div class="rdate"><i class="cdot" style="background:${c1}"></i></div><div class="rmain"><div class="rname">${esc(x.nom)}</div><div class="rsub">${x.tipo} · ${x.uso} movimientos en 90 días</div></div><div class="ract"><button class="btn${S.fijada===x.id?'':' ghost'} sm" data-a="ordFijar" data-id="${x.id}" aria-pressed="${S.fijada===x.id}">${S.fijada===x.id?'Fijada':'Fijar'}</button> <button class="btn ghost sm" data-a="ordMove" data-id="${x.id}" data-d="-1" ${i===0?'disabled':''} aria-label="Subir ${esc(x.nom)}">▲</button> <button class="btn ghost sm" data-a="ordMove" data-id="${x.id}" data-d="1" ${i===L.length-1?'disabled':''} aria-label="Bajar ${esc(x.nom)}">▼</button></div></div>`}).join('')+tools;
   }
-  return head+sum+(L.length?L.map(x=>x.k==='c'?cardArticle(x.o,t,all,true):cuentaFace(x.o,true)).join(''):'<div class="empty"><b>Sin tarjetas todavía</b>Toca + para agregar una y ver su corte y su fecha de pago.</div>')+tools;
+  return head+sum+(L.length?L.map(x=>x.k==='c'?cardResumen(x.o,t,all,x.uso):cuentaFace(x.o,true)).join(''):'<div class="empty"><b>Sin tarjetas todavía</b>Toca + para agregar una y ver su corte y su fecha de pago.</div>')+tools;
 }
 
 function vMas(){
