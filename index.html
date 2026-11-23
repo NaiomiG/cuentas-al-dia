@@ -2895,6 +2895,7 @@ function itemsTarjetas(){
   const ord=Array.isArray(S.orden)?S.orden:null;
   L.forEach((x,i)=>x.i=i);
   L.sort((a,b)=>{
+    if(S.fijada){if(a.id===S.fijada&&b.id!==S.fijada)return -1;if(b.id===S.fijada&&a.id!==S.fijada)return 1}
     if(ord){const ia=ord.indexOf(a.id),ib=ord.indexOf(b.id);if(ia>=0&&ib>=0)return ia-ib;if(ia>=0)return -1;if(ib>=0)return 1}
     return b.uso-a.uso||a.i-b.i;
   });
@@ -2934,8 +2935,8 @@ function vTarjetas(){
   const sum=`<div><p class="muted" style="margin:0">${S.cards.length?`Debes <b class="n" style="color:var(--ink)">${fmt0(deuda)}</b>${limite>0?` (${(deuda/limite*100).toFixed(0)}% de uso)`:''} · `:''}Disponible <b class="n" style="color:var(--ink)">${fmt0(S.cash)}</b>${tAhFijo>0?` · Apartado aparte <b class="n" style="color:var(--ink)">${fmt0(tAhFijo)}</b>`:''}</p></div>`;
   const tools=`<div class="chips">${accsV().length>1?'<button class="btn sm" data-a="transfer">Pasar dinero entre cuentas</button>':''}<button class="btn ghost sm" data-a="ordToggle">${ui.ord?'Listo':'Ordenar'}</button><button class="btn ghost sm" data-a="tab" data-v="ahorro">Ver ahorro</button>${S.cards.some(c=>msiActivos(c).length)?'<button class="btn ghost sm" data-a="tab" data-v="meses">Mes a mes</button>':''}</div>`;
   if(ui.ord){
-    return head+sum+`<p class="small muted" style="margin:0">Sube las que más usas. ${Array.isArray(S.orden)?'<button class="link" data-a="ordAuto">Ordenar solas por uso</button>':'Ahora van ordenadas solas por uso.'}</p>`+
-    L.map((x,i)=>{const[c1]=cardColors(x.k==='a'?{...x.o,tipo:x.o.tipo||'debito'}:x.o);return `<div class="row nochk"><div class="rdate"><i class="cdot" style="background:${c1}"></i></div><div class="rmain"><div class="rname">${esc(x.nom)}</div><div class="rsub">${x.tipo} · ${x.uso} movimientos en 90 días</div></div><div class="ract"><button class="btn ghost sm" data-a="ordMove" data-id="${x.id}" data-d="-1" ${i===0?'disabled':''} aria-label="Subir ${esc(x.nom)}">▲</button> <button class="btn ghost sm" data-a="ordMove" data-id="${x.id}" data-d="1" ${i===L.length-1?'disabled':''} aria-label="Bajar ${esc(x.nom)}">▼</button></div></div>`}).join('')+tools;
+    return head+sum+`<p class="small muted" style="margin:0">Fija una para dejarla siempre arriba o sube las que más usas. ${Array.isArray(S.orden)?'<button class="link" data-a="ordAuto">Ordenar solas por uso</button>':'Ahora van ordenadas solas por uso.'}</p>`+
+    L.map((x,i)=>{const[c1]=cardColors(x.k==='a'?{...x.o,tipo:x.o.tipo||'debito'}:x.o);return `<div class="row nochk"><div class="rdate"><i class="cdot" style="background:${c1}"></i></div><div class="rmain"><div class="rname">${esc(x.nom)}</div><div class="rsub">${x.tipo} · ${x.uso} movimientos en 90 días</div></div><div class="ract"><button class="btn${S.fijada===x.id?'':' ghost'} sm" data-a="ordFijar" data-id="${x.id}" aria-pressed="${S.fijada===x.id}">${S.fijada===x.id?'Fijada':'Fijar'}</button> <button class="btn ghost sm" data-a="ordMove" data-id="${x.id}" data-d="-1" ${i===0?'disabled':''} aria-label="Subir ${esc(x.nom)}">▲</button> <button class="btn ghost sm" data-a="ordMove" data-id="${x.id}" data-d="1" ${i===L.length-1?'disabled':''} aria-label="Bajar ${esc(x.nom)}">▼</button></div></div>`}).join('')+tools;
   }
   return head+sum+(L.length?L.map(x=>x.k==='c'?cardArticle(x.o,t,all,true):cuentaFace(x.o,true)).join(''):'<div class="empty"><b>Sin tarjetas todavía</b>Toca + para agregar una y ver su corte y su fecha de pago.</div>')+tools;
 }
@@ -4103,6 +4104,7 @@ const A={
   newCard:()=>{closeModal();editCard()},newDeb:()=>{closeModal();editCuenta(null,'debito')},newAho:()=>{closeModal();editCuenta(null,'ahorro')},newEfe:()=>{closeModal();editCuenta(null,'efectivo')},
   ordToggle:()=>{ui.ord=!ui.ord;render()},
   ordAuto:()=>{S.orden=null;commit()},
+  ordFijar:el=>{S.fijada=S.fijada===el.dataset.id?null:el.dataset.id;commit()},
   calSel:el=>{ui.calSel=el.dataset.d;render()},
   calMes:()=>{ui.calFull=!ui.calFull;render()},
   detMes:el=>{ui.detMes={id:ui.det,k:el.dataset.v};render()},
