@@ -547,7 +547,7 @@ function cardInst(c,from,to){
     if(rec)amount=rec.monto;
     else{
       const closed=addDays(d,-dp)<=t;
-      if(c.statement===0&&closed&&first){first=false;continue}
+      if(c.statement===0&&closed&&first){const ci=addDays(d,-dp);const pagado=(c.ultCorte&&c.ultCorte>=ci)||Object.keys(S.paid).some(k=>k.startsWith('k:'+c.id+':')&&!S.paid[k].omit&&S.paid[k].fecha>=ci);if(pagado||d<t){first=false;continue}}
       let conocido=false;
       if(first&&(+c.statement>0)&&(!sd||d===sd)){amount=+c.statement;conocido=true}
       else if(first&&c.statement==null&&(+c.balance||0)>0){amount=Math.max(+c.balance,cardEst(c,k));est=true;carryUsed=true}
