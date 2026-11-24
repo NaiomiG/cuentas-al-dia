@@ -2254,6 +2254,49 @@ function undoBox(){
   const L=undoList();if(!L.length)return '';
   return `<div class="box" style="margin-top:12px"><h2 style="font-size:16px">Deshacer una carga</h2><p class="small muted" style="margin:0 0 8px">Guardo las últimas cargas de estados en este dispositivo para que puedas volver a antes.</p>${L.map((u,i)=>`<div class="kv"><span>${esc(u.txt)}<br><small class="muted">${new Date(u.t).toLocaleString('es-MX',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</small></span><button class="link" data-a="deshacerCarga" data-i="${i}">Volver a antes</button></div>`).join('')}</div>`;
 }
+function marcarPagosEstado(card,pg){
+  let n=0;if(!card||!pg.length)return 0;
+  pg=pg.slice().sort((x,y)=>x.fecha<y.fecha?-1:1);
+  const pend=instances(addDays(pg[0].fecha,-5),addDays(pg[pg.length-1].fecha,60)).filter(i=>i.kind==='card'&&i.ref.id===card.id&&!isDone(i));
+  for(const r of pg){let best=null,bd=1e9;
+    for(const i of pend){if(S.paid[i.key])continue;const d=dnum(i.date)-dnum(r.fecha),ad=Math.abs(d);if(d>=-7&&d<(+card.diasPago||20)&&ad<bd){bd=ad;best=i}}
+    if(best){S.paid[best.key]={monto:r.monto,fecha:r.fecha,noCash:true,mov:null,estado:true};n++}}
+  return n;
+}
+function cajaTxtTarjetas(){
+  return `<div class="box" style="margin-top:12px"><h2 style="font-size:16px">Actualizar tarjetas desde un texto</h2><p class="small muted" style="margin:0 0 8px">Pega aquí el texto con los datos de tus tarjetas (o elige el archivo .txt). Antes de aplicar te dejo escoger a qué tarjeta va cada una.</p><textarea id="cardtxt" placeholder="Pega aquí el texto" style="min-height:70px"></textarea><div class="hacts" style="margin-top:8px"><button class="btn sm" data-a="txtTarjetas">Revisar</button><label class="btn ghost sm" style="cursor:pointer">Elegir archivo<input type="file" id="cardtxtf" accept=".txt,.json,text/plain,application/json" style="display:none"></label></div></div>`;
+}
+function txtTarjetas(tx){
+  let o;try{o=JSON.parse(tx)}catch(e){toast('Ese texto no se puede leer. Pega el texto completo, de { a }');return}
+  const L=(o&&Array.isArray(o.tarjetas)?o.tarjetas:[]).filter(t=>t&&t.nombre);
+  if(!L.length){toast('No encontré tarjetas en ese texto');return}
+  const match=t=>{const ns=[t.nombre,...(t.alias||[])].map(_nn);const c=S.cards.find(c=>ns.includes(_nn(c.nombre)));return c?c.id:'new'};
+  const vals={};L.forEach((t,i)=>vals['m'+i]=match(t));
+  const f0=n=>fmt(+n||0);
+  openForm({title:'Actualizar tarjetas',vals,saveLabel:'Aplicar',
+    note:'Elige a qué tarjeta de tu app va cada una. Se actualizan saldo, pago, mínimo, corte, límite y compras a meses. Puedes deshacerlo en "Deshacer una carga".',
+    fields:()=>L.map((t,i)=>({k:'m'+i,label:`${t.nombre}: debes ${f0(t.saldo)}, pago ${f0(t.pagoSinIntereses)}${t.minimo?', mínimo '+f0(t.minimo):''}`,type:'select',full:1,opts:[...S.cards.map(c=>[c.id,c.nombre]),['new','Crear tarjeta nueva'],['skip','No aplicar']]})),
+    save:v=>{
+      guardarUndo('Actualización de tarjetas desde un texto');
+      let n=0,pp=0;
+      L.forEach((t,i)=>{
+        const sel=v['m'+i];if(sel==='skip')return;
+        let c=sel==='new'?null:cardOf(sel);
+        if(!c){c={id:uid(),nombre:t.nombre,color:'navy',desde:t.ultCorte?addDays(t.ultCorte,-60):todayISO(),msi:[],tasa:0,gastoProm:0};const b=BANCOS.find(b=>b[0]===t.banco);if(b){c.banco=b[0];c.c1=b[2];c.c2=b[4]}S.cards.push(c)}
+        if(t.limite>0)c.limite=+t.limite;
+        if(t.saldo!=null)c.balance=+t.saldo;
+        if(t.pagoSinIntereses!=null)c.statement=+t.pagoSinIntereses;
+        if(t.minimo!=null)c.minimo=+t.minimo;
+        if(+t.corte>=1)c.corte=+t.corte;
+        if(+t.diasPago>=1)c.diasPago=+t.diasPago;
+        if(t.ultCorte)c.ultCorte=t.ultCorte;
+        if(Array.isArray(t.msi)){c.msi=t.msi.filter(m=>+m.restantes>0).map(m=>{const prev=(c.msi||[]).find(p=>_nn(p.concepto)===_nn(m.concepto));return{id:prev?prev.id:uid(),concepto:m.concepto,total:+m.total,meses:+m.meses,remaining:+m.restantes}})}
+        if(Array.isArray(t.pagos))pp+=marcarPagosEstado(c,t.pagos.filter(x=>x&&x.fecha&&+x.monto>0).map(x=>({fecha:x.fecha,monto:+x.monto})));
+        n++;
+      });
+      closeModal();commit(`${n} ${n===1?'tarjeta actualizada':'tarjetas actualizadas'}${pp?` y ${pp} ${pp===1?'pago marcado':'pagos marcados'} como hechos`:''}`);
+    }});
+}
 function confirmImport(){
   const inc=ST.rows.filter(r=>r.inc&&r.cat!=='Ignorar');
   if(!inc.length){toast('No hay movimientos marcados para guardar');return}
@@ -2283,11 +2326,7 @@ function confirmImport(){
     else extra='. No cambié los datos de la tarjeta porque este estado es más viejo que el último que subiste'}
   if(antiguo)extra='. Como es más viejo que el último que subiste, lo guardé como historial sin cambiar el saldo ni los datos de la tarjeta';
   let yaPag=0;
-  if(card){const pg=ST.rows.filter(r=>r.flag==='pagoTarjeta'&&r.tipo==='abono').sort((x,y)=>x.fecha<y.fecha?-1:1);
-    if(pg.length){const pend=instances(addDays(pg[0].fecha,-5),addDays(pg[pg.length-1].fecha,60)).filter(i=>i.kind==='card'&&i.ref.id===card.id&&!isDone(i));
-      for(const r of pg){let best=null,bd=1e9;
-        for(const i of pend){if(S.paid[i.key])continue;const d=dnum(i.date)-dnum(r.fecha);const ad=Math.abs(d);if(d>=-7&&d<=(+card.diasPago||20)&&ad<bd){bd=ad;best=i}}
-        if(best){S.paid[best.key]={monto:r.monto,fecha:r.fecha,noCash:true,mov:null,estado:true};yaPag++}}}}
+  if(card)yaPag=marcarPagosEstado(card,ST.rows.filter(r=>r.flag==='pagoTarjeta'&&r.tipo==='abono').map(r=>({fecha:r.fecha,monto:r.monto})));
   ST=newST();ui.sub.mov='lista';
   commit(`${n} movimientos guardados${quitados?` y ${quitados} tuyos del periodo sustituidos`:''}${prog?` (${prog} marcaron un pago programado)`:''}${yaPag?`. Quité ${yaPag} ${yaPag>1?'pagos':'pago'} de tarjeta de Hoy porque ya aparece${yaPag>1?'n':''} pagado${yaPag>1?'s':''} en el estado`:''}${extra}`);
 }
@@ -3129,6 +3168,7 @@ function vEstado(){
     <label class="drop" id="drop" style="display:block;cursor:pointer"><b style="display:block;color:var(--ink);font:700 17px var(--f-display)">${ST.busy?'Leyendo…':'Elige el PDF o el CSV'}</b><span>o arrástralo aquí. Puedes elegir varios meses a la vez.</span><input id="stfile" type="file" accept=".pdf,.csv,.txt,application/pdf,text/csv" multiple hidden></label>
     ${ST.needPw?`<div class="fld" style="margin-top:12px"><label for="st_pw">Contraseña del PDF</label><input id="st_pw" type="password" data-st="pw" value="${esc(ST.pw)}" autocomplete="off"></div><button class="btn sm" style="margin-top:8px" data-a="stRetry">Abrir con contraseña</button>`:''}
     ${undoBox()}
+    ${cajaTxtTarjetas()}
     ${S.ultReemplazo&&(S.ultReemplazo.quitados||[]).length+(S.ultReemplazo.nuevos||[]).length?`<div class="box" style="margin-top:12px"><div class="small">Último reemplazo (${dshort(S.ultReemplazo.fecha)}): se quitaron ${(S.ultReemplazo.quitados||[]).length} movimientos tuyos y se guardaron ${(S.ultReemplazo.nuevos||[]).length} del estado.</div><button class="btn ghost sm" style="margin-top:8px" data-a="deshacerReemplazo">Deshacer el reemplazo</button></div>`:''}
     ${ST.msg?`<div class="alert ${ST.msgTone==='bad'?'bad':ST.msgTone==='warn'?'warn':'info'}" style="margin-top:12px">${esc(ST.msg)}</div>${ST.msgTone==='bad'||ST.msgTone==='warn'||ST.scanned?`<div class="hacts" style="margin-top:8px"><button class="btn" data-a="waDiag">Mandar por WhatsApp</button><button class="btn ghost" data-a="copyDiag">Copiar detalles</button></div><p class="small muted">Solo se envían datos técnicos (banco, tamaño, error). Nada de montos ni cuentas.</p>`:''}`:''}
     ${ST.scanned&&ST.doc?`<div class="box" style="margin-top:12px"><h2 style="font-size:16px">Es un PDF escaneado</h2><p class="small muted" style="margin:0 0 10px">Puedo leerlo aquí mismo, en tu dispositivo, con reconocimiento de texto. No se envía a ningún lado. La primera vez descarga el lector (unos 10 MB) y puede tardar un par de minutos.</p><button class="btn sm" data-a="stOcr" ${ST.busy?'disabled':''}>Leer en mi dispositivo</button></div>`:''}
@@ -4201,7 +4241,7 @@ const A={
   deshacerCarga:el=>deshacerCarga(+el.dataset.i),
   verUndo:()=>{ST=newST();ui.tab='mov';ui.sub.mov='estado';ui.det=null;saveUI();render();window.scrollTo(0,0)},
   stRetry:()=>{if(ST.pendingFiles)stHandleFiles(ST.pendingFiles);else if(ST.pendingFile)stHandleFile(ST.pendingFile)},stDesde:el=>{const a=el.dataset.k==='a';ST=newST();ST.cuenta=a?'acc:'+el.dataset.id:el.dataset.id;ui.tab='mov';ui.sub.mov='estado';render()},
-  stPaste:()=>stPaste(),stClaude:()=>stClaude(),stOcr:()=>stOcr(),stConfirm:()=>confirmImport(),
+  txtTarjetas:()=>{const e=$('#cardtxt');txtTarjetas(e?e.value.trim():'')},stPaste:()=>stPaste(),stClaude:()=>stClaude(),stOcr:()=>stOcr(),stConfirm:()=>confirmImport(),
   stCancel:()=>{ST=newST();render()},aplicarMeta:()=>aplicarMeta(),
   domiAgregar:el=>{const d=ST.domis[+el.dataset.i];editItem(null,'egreso','mensual',{nombre:d.nombre,monto:d.monto,dia:d.dia,domiciliado:true,medio:stMedio(),grupo:'Suscripciones',cat:'Wants'})},
   domiMarcar:el=>{const d=ST.domis[+el.dataset.i],it=S.items.find(x=>x.id===d.existing);if(it){it.domiciliado=true;it.medio=stMedio();d.exDom=true;persist();render();toast('Marcado como domiciliado')}},
@@ -4275,6 +4315,7 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   const el=e.target;
+  if(el.id==='cardtxtf'&&el.files&&el.files[0]){const f=el.files[0],fr=new FileReader();fr.onload=()=>txtTarjetas(String(fr.result||'').trim());fr.readAsText(f);el.value='';return}
   if(el.dataset.sim&&S){S.sim=S.sim||{};S.sim[el.dataset.sim]=el.value;if(el.dataset.sim==='cuenta'){const a=acc(el.value);if(a){S.sim.saldo=a.saldo;S.sim.tasa=a.tasa||0}}persist();render();return}
   if(el.dataset.wlmap!==undefined&&WL){WL.map[WL.cards[+el.dataset.wlmap]]=el.value;render();return}
   if(el.dataset.wlr&&WL){const r=WL.rows.find(x=>x.id===el.dataset.wlr);if(r){if(el.dataset.wlf==='inc')r.inc=el.checked;else r.cat=el.value;render()}return}
