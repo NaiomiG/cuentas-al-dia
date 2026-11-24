@@ -2113,7 +2113,7 @@ function loadTess(){
   return new Promise((res,rej)=>{const s=document.createElement('script');s.src=TESS.js;s.onload=()=>res();s.onerror=()=>rej(new Error('nolib'));document.head.appendChild(s)});
 }
 function ocrLines(text){
-  return String(text||'').split(/\r?\n/).map(t=>t.replace(/[|\[\]{}]/g,' ').replace(/\s-\s+(?=\$)/g,' -').replace(/^[^A-Za-z0-9¡¿]+/,'').replace(/\s+/g,' ').trim()).filter(Boolean).map(t=>({text:t}));
+  return String(text||'').split(/\r?\n/).map(t=>t.replace(/[|\[\]{}_]/g,' ').replace(/\s-\s+(?=\$)/g,' -').replace(/^[^A-Za-z0-9¡¿]+/,'').replace(/\s+/g,' ').trim()).filter(Boolean).map(t=>({text:t}));
 }
 async function ocrPdf(doc,prog){
   prog(0,doc.numPages,'lib');await loadTess();
