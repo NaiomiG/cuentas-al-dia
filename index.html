@@ -261,6 +261,10 @@ nav.rail button[aria-current="page"]{color:var(--accent);font-weight:600}
 .pick2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}.pick2 label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}.pick2 input[type=color]{width:100%;height:44px;padding:2px;border-radius:12px;border:1px solid var(--line);background:var(--surface2)}
 .c-navy{--c1:#16201B} .c-rosa{--c1:#A5472B} .c-teal{--c1:#1F6F4A} .c-oro{--c1:#9A7410} .c-grafito{--c1:#4B5550}
 .stk{display:flex;align-items:flex-end;gap:5px;margin-top:6px}.stk>div{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}.stk .sb{width:100%;display:flex;flex-direction:column-reverse;border-radius:5px 5px 0 0;overflow:hidden;min-height:2px}.stk .sb i{display:block;width:100%}.stk em{font:600 10.5px var(--f-body);color:var(--muted);font-style:normal;white-space:nowrap}.stk small{font-size:11px;color:var(--muted);text-transform:capitalize}
+.gt{font:600 13px var(--f-body);margin:14px 0 2px;color:var(--ink)}
+.leyenda{display:flex;gap:14px;font-size:12px;color:var(--muted);margin:2px 0 0}.leyenda i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:baseline}
+.donutw{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:8px 0 4px}.donut{width:150px;height:150px;flex:none}
+.dleg{flex:1;min-width:170px;display:flex;flex-direction:column;gap:6px}.dleg div{display:grid;grid-template-columns:10px 1fr auto auto;gap:8px;align-items:center;font-size:13px}.dleg i{width:10px;height:10px;border-radius:3px}.dleg b{font-weight:600}.dleg em{font-style:normal;color:var(--muted);min-width:58px;text-align:right}
 .cols{display:flex;align-items:flex-end;gap:5px;height:130px;margin-top:6px}
 .cols div{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:4px}
 .cols i{display:block;width:100%;background:var(--accent);border-radius:5px 5px 0 0;min-height:2px}
@@ -3085,7 +3089,8 @@ function vDetalle(){
   ${face}
   <div class="chips" style="margin:10px 0 2px"><button class="btn" data-a="stDesde" data-id="${ui.det}" data-k="${card?'c':'a'}">Subir estado de cuenta</button>${undoList().length?'<button class="btn ghost" data-a="verUndo">Deshacer una carga</button>':''}</div>
   ${detMetricsHTML(ui.det)}
-  <section class="sect"><h2>Movimientos<small>${L.length?L.length+(L.length>80?' · últimos 80':''):''}</small></h2>${mesChips}${L.length?L.slice(0,80).map(row).join(''):'<div class="empty"><b>Sin movimientos todavía</b>Cuando registres un gasto, un pago o subas un estado de cuenta con esta '+(card?'tarjeta':'cuenta')+', aparecen aquí.</div>'}</section>`;
+  ${histDetalle(ui.det,card)}
+  <section class="sect"><h2>Movimientos<small>${L.length?L.length+(L.length>80?' · últimos 80':''):''}</small></h2>${mesChips}${(()=>{const R=rubrosDe(L,!!card,ui.det);return R.tot>0?`<h3 class="gt">En qué se fue${selMes==='todo'?'':' · '+lblK(selMes)}</h3>`+donut(abrirOtros(R.rub,R.com,R.tot),R.tot,card?'Compras':'Gastos'):''})()}${L.length?L.slice(0,80).map(row).join(''):'<div class="empty"><b>Sin movimientos todavía</b>Cuando registres un gasto, un pago o subas un estado de cuenta con esta '+(card?'tarjeta':'cuenta')+', aparecen aquí.</div>'}</section>`;
 }
 function vTarjetas(){
   if(ui.det)return vDetalle();
@@ -3244,7 +3249,7 @@ function vComercios(){
   const ppT=Object.entries(R.pp).sort((a,b)=>b[1]-a[1]),ppSum=ppT.reduce((s,[,v])=>s+v,0);
   const seg=`<div>${segHTML('per',[['mes','Mes'],['3m','3 meses'],['todo','Todo']],'mes')}</div>${per==='todo'?'':monthNav()}`;
   if(!tot)return seg+'<div class="empty"><b>Sin gastos en este periodo</b>Cuando registres gastos o subas un estado de cuenta, aquí ves en qué comercios y rubros se va tu dinero.</div>';
-  return seg+`<section class="sect"><h2>Gastaste<small>${fmt0(tot)}</small></h2>${rubs.map(([k,v])=>`<div class="bud"><div class="kv"><span><b style="color:var(--ink)">${esc(k)}</b></span><span class="n">${fmt0(v)} · ${Math.round(v/tot*100)}%</span></div><div class="prog"><i style="width:${(v/tot*100).toFixed(0)}%"></i></div></div>`).join('')}</section>
+  return seg+`<section class="sect"><h2>Gastaste<small>${fmt0(tot)}</small></h2>${donut(abrirOtros(R.rub,R.com,tot),tot,'Gastos')}</section>
   <section class="sect"><h2>Dónde más gastas<small>toca uno para cambiar su rubro</small></h2>${R.com.slice(0,12).map((c,i)=>`<div class="row nochk"><div class="rdate"><b>${i+1}</b></div><button class="rmain" data-a="editCom" data-k="${esc(c.key)}"><div class="rname">${esc(c.nombre)}</div><div class="rsub">${esc(c.rubro)} · ${c.n} ${c.n===1?'compra':'compras'}</div></button><div class="ramt">${fmt0(c.total)}</div></div>`).join('')}</section>
   ${ppSum>0?`<section class="sect"><h2>Por PayPal<small>${fmt0(ppSum)}</small></h2>${ppT.map(([k,v])=>`<div class="kv"><span>Cobrado a ${esc(ppLabel(k))}</span><span class="n">${fmt0(v)}</span></div>`).join('')}<div class="small muted" style="margin-top:8px">Marca "Pasó por PayPal" al registrar un gasto, o sube el estado de la tarjeta: los cargos que dicen PayPal se detectan solos.</div></section>`:''}
   <div class="small muted">Cuenta por fecha de compra. Los pagos a tarjeta no se suman, para no contar dos veces lo mismo.</div>`;
@@ -3257,6 +3262,75 @@ function editCom(key){
     note:'El cambio aplica a todos los gastos de este comercio, de cualquier mes.',
     fields:()=>[{k:'nombre',label:'Nombre'},{k:'rubro',label:'Rubro',type:'select',opts:RUBROS.map(r=>[r,r])}],
     save:v=>{if(!String(v.nombre||'').trim())return 'Ponle un nombre.';S.comercios=S.comercios||{};S.comercios[key]={nombre:v.nombre.trim(),rubro:v.rubro};commit('Guardado')}});
+}
+
+
+/* ---- gráficas: flujo por mes, acumulado y pastel ---- */
+const PAL=['#2f6f6a','#d08a3c','#6b5ca5','#c4574f','#4a86b8','#8a9a3b','#b3678f','#8d8d8d'];
+function rangoMeses(ks,key,def){const r=ui.sub[key]||def||'12';return r==='todo'?ks:ks.slice(-(+r))}
+function flujoEntidad(id,isCard){
+  const by={};const o=k=>by[k]=by[k]||{k,a:0,b:0};
+  S.movs.forEach(m=>{
+    if(m.cat==='Ajuste'||m.ajuste)return;const k=monthKey(m.fecha);
+    if(isCard){
+      const d=deltaCard(m,id);
+      if(m.fuente==='estado'&&m.metodo===id){if(m.tipo==='egreso'&&m.cat!=='Deuda')o(k).a+=m.monto;else if(m.tipo==='ingreso')o(k).b+=m.monto;return}
+      if(d>0)o(k).a+=d;else if(d<0)o(k).b-=d;return}
+    if(m.tipo==='transfer'){if(m.to===id)o(k).a+=m.monto;else if(m.from===id)o(k).b+=m.monto;return}
+    if(m.cuenta!==id)return;
+    if(m.tipo==='ingreso')o(k).a+=m.monto;else if(m.tipo==='egreso')o(k).b+=m.monto;
+  });
+  return Object.values(by).sort((x,y)=>x.k<y.k?-1:1);
+}
+function flujoGlobal(){return monthsWithData().map(monthSummary).filter(s=>s.ing>0||s.gasto>0).map(s=>({k:s.mk,a:s.ing,b:s.gasto}))}
+function conAcum(L,sg){let c=0;return L.map(x=>(c+=sg===0?x.a:x.a-x.b,{...x,c:r2(c)}))}
+function barrasFlujo(L,la,lb){
+  const W=340,H=150,pl=34,pr=6,pt=10,pb=22,n=L.length,mx=Math.max(1,...L.flatMap(x=>[x.a,x.b])),bw=(W-pl-pr)/n,y=v=>pt+(H-pt-pb)*(1-v/mx);
+  let g='';[0,.5,1].forEach(f=>{const v=mx*f;g+=`<line x1="${pl}" x2="${W-pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/><text x="${pl-4}" y="${(y(v)+3).toFixed(1)}" text-anchor="end" fill="var(--muted)" font-size="9.5">${fmtK(v)}</text>`});
+  const ww=Math.max(2,Math.min(11,bw*.36));
+  const bars=L.map((x,i)=>{const cx=pl+bw*(i+.5);return `<g><title>${mesCorto(x.k)}: ${la} ${fmt0(x.a)} · ${lb} ${fmt0(x.b)}</title><rect x="${(cx-ww-.5).toFixed(1)}" y="${y(x.a).toFixed(1)}" width="${ww.toFixed(1)}" height="${Math.max(0,H-pb-y(x.a)).toFixed(1)}" rx="2" fill="var(--accent)"/><rect x="${(cx+.5).toFixed(1)}" y="${y(x.b).toFixed(1)}" width="${ww.toFixed(1)}" height="${Math.max(0,H-pb-y(x.b)).toFixed(1)}" rx="2" fill="${PAL[1]}"/></g>`}).join('');
+  const step=Math.ceil(n/6),lab=L.map((x,i)=>i%step===0||i===n-1?`<text x="${(pl+bw*(i+.5)).toFixed(1)}" y="${H-6}" text-anchor="middle" fill="var(--muted)" font-size="9.5">${MES[+x.k.slice(5,7)-1]}${n>8?' '+x.k.slice(2,4):''}</text>`:'').join('');
+  return `<svg class="patsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${la} y ${lb} por mes">${g}${bars}${lab}</svg><div class="leyenda"><span><i style="background:var(--accent)"></i>${la}</span><span><i style="background:${PAL[1]}"></i>${lb}</span></div>`;
+}
+function lineaAcum(L,tit){
+  if(L.length<2)return'';
+  const W=340,H=130,pl=34,pr=10,pt=12,pb=22,n=L.length,v=L.map(x=>x.c),mn=Math.min(0,...v),mx=Math.max(0,...v),sp=(mx-mn)||1,x=i=>pl+(W-pl-pr)*i/(n-1),y=q=>pt+(H-pt-pb)*(1-(q-mn)/sp);
+  const d=v.map((q,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(q).toFixed(1)).join(' '),area=d+` L${x(n-1).toFixed(1)} ${y(0).toFixed(1)} L${x(0).toFixed(1)} ${y(0).toFixed(1)}Z`;
+  let g='';[mn,(mn+mx)/2,mx].forEach(q=>{g+=`<line x1="${pl}" x2="${W-pr}" y1="${y(q).toFixed(1)}" y2="${y(q).toFixed(1)}" stroke="var(--line)"/><text x="${pl-4}" y="${(y(q)+3).toFixed(1)}" text-anchor="end" fill="var(--muted)" font-size="9.5">${fmtK(q)}</text>`});
+  const step=Math.ceil(n/6),lab=L.map((q,i)=>i%step===0||i===n-1?`<text x="${x(i).toFixed(1)}" y="${H-6}" text-anchor="${i===0?'start':i===n-1?'end':'middle'}" fill="var(--muted)" font-size="9.5">${MES[+q.k.slice(5,7)-1]}${n>8?' '+q.k.slice(2,4):''}</text>`:'').join('');
+  const last=L[n-1];
+  return `<svg class="patsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${tit}, de ${fmt0(0)} a ${fmt0(last.c)}">${g}<path d="${area}" fill="var(--accent)" opacity=".10"/><path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${x(n-1).toFixed(1)}" cy="${y(last.c).toFixed(1)}" r="4" fill="var(--accent)"/>${lab}</svg>`;
+}
+function flujoBloque(L,o){
+  if(!L.length)return '<div class="empty"><b>Sin movimientos</b>Cuando haya movimientos aquí aparece su historial.</div>';
+  const ks=L.map(x=>x.k),vis=rangoMeses(ks,'fr','12'),V=L.filter(x=>vis.includes(x.k)),A=conAcum(V,o.sg||1);
+  const ta=V.reduce((s,x)=>s+x.a,0),tb=V.reduce((s,x)=>s+x.b,0);
+  const seg=segHTML('fr',[['6','6 meses'],['12','12 meses'],['todo','Todo']],'12');
+  return `${seg}<p class="small muted" style="margin:6px 0 0">${o.la} <b class="n" style="color:var(--ink)">${fmt0(ta)}</b> · ${o.lb} <b class="n" style="color:var(--ink)">${fmt0(tb)}</b> · ${o.neto} <b class="n" style="color:var(--ink)">${fmt0(Math.abs(ta-tb))}</b></p>${barrasFlujo(V,o.la,o.lb)}<h3 class="gt">${o.acum}</h3>${lineaAcum(A,o.acum)}<p class="small muted" style="margin:2px 0 0">${o.nota}</p>`;
+}
+function donut(entries,tot,centro){
+  const E=entries.filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);if(!E.length||!(tot>0))return'';
+  const top=E.slice(0,7),rest=E.slice(7).reduce((s,[,v])=>s+v,0);if(rest>0)top.push(['Resto',rest]);
+  const R=52,C=2*Math.PI*R;let off=0;
+  const arcs=top.map(([k,v],i)=>{const len=v/tot*C,a=`<circle r="${R}" cx="70" cy="70" fill="none" stroke="${PAL[i%PAL.length]}" stroke-width="22" stroke-dasharray="${Math.max(0,len-1.2).toFixed(2)} ${(C-Math.max(0,len-1.2)).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 70 70)"><title>${esc(k)}: ${fmt0(v)}</title></circle>`;off+=len;return a}).join('');
+  return `<div class="donutw"><svg viewBox="0 0 140 140" class="donut" role="img" aria-label="Gastos por rubro, total ${fmt0(tot)}. Mayor: ${esc(top[0][0])} ${Math.round(top[0][1]/tot*100)}%">${arcs}<text x="70" y="66" text-anchor="middle" fill="var(--muted)" font-size="9">${centro||'Total'}</text><text x="70" y="82" text-anchor="middle" fill="var(--ink)" font-size="15" font-weight="700">${fmtK(tot)}</text></svg>
+  <div class="dleg">${top.map(([k,v],i)=>`<div><i style="background:${PAL[i%PAL.length]}"></i><span>${esc(k)}</span><b class="n">${Math.round(v/tot*100)}%</b><em class="n">${fmt0(v)}</em></div>`).join('')}</div></div>`;
+}
+function abrirOtros(rub,com,tot){const o={...rub};let ot=o['Otros']||0;(com||[]).filter(c=>c.rubro==='Otros'&&c.total>=tot*.04).forEach(c=>{o[c.nombre]=(o[c.nombre]||0)+c.total;ot-=c.total});if(ot>0.5)o['Otros']=ot;else delete o['Otros'];return Object.entries(o)}
+function rubrosDe(L,isCard,id){
+  const rub={},com={};let tot=0;
+  L.forEach(m=>{
+    if(m.ajuste||m.cat==='Ajuste'||m.cat==='Deuda'||m.cat==='Reembolso'||m.tipo==='transfer')return;
+    if(isCard){if(m.tipo!=='egreso'||(m.key&&m.key.startsWith('k:')))return}
+    else if(m.tipo!=='egreso')return;
+    const g=gastoMov(m),c=comercioOf(m),r=c.rubro;rub[r]=(rub[r]||0)+g;tot+=g;if(r==='Otros'){const q=com[c.key]=com[c.key]||{nombre:c.nombre,rubro:r,total:0};q.total+=g}});
+  return{rub,tot:r2(tot),com:Object.values(com)};
+}
+function histDetalle(id,card){
+  const L=flujoEntidad(id,!!card);
+  const o=card?{la:'Compras',lb:'Pagos',neto:'Diferencia',sg:0,acum:'Compras acumuladas',nota:'Suma de todas las compras desde el primer mes con datos. Los pagos desde otras cuentas pueden faltar, por eso no se resta nada: esto no es tu deuda actual.'}
+    :{la:'Entró',lb:'Salió',neto:'Diferencia',sg:1,acum:'Acumulado (entró menos salió)',nota:'Suma de lo que entró menos lo que salió desde el primer mes con datos. Incluye lo que pasó a otras cuentas. No es el saldo que marca el banco.'};
+  return `<section class="sect"><h2>Historial<small>todos los meses</small></h2>${flujoBloque(L,o)}</section>`;
 }
 
 function vHistorial(){
@@ -3275,7 +3349,8 @@ function vHistorial(){
     ${sn?`<div class="kv"><span>${cur?'Saldo hoy':'Saldo al cierre'}</span><span class="n">${fmt0(sn.cash)}</span></div>${sn.deuda>0?`<div class="kv"><span>Deuda en tarjetas</span><span class="n">${fmt0(sn.deuda)}</span></div>`:''}${sn.ahorro>0?`<div class="kv"><span>En apartados</span><span class="n">${fmt0(sn.ahorro)}</span></div>`:''}`:''}
     ${s.gasto>0?`<button class="link" style="margin-top:8px" data-a="hmes" data-m="${s.mk}">${ab?'Ocultar detalle':'Ver en qué se fue'}</button>`:''}
     ${ab?`<div style="margin-top:10px">${rb.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><span class="n">${fmt0(v)}</span></div>`).join('')}<div class="small muted" style="margin:10px 0 4px">Más gastos</div>${s.com.slice(0,5).map(c=>`<div class="kv"><span>${esc(c.nombre)}</span><span class="n">${fmt0(c.total)}</span></div>`).join('')}</div>`:''}</section>`}).join('');
-  return `<section class="sect"><h2>Gastos por mes<small>últimos 6</small></h2>${cols}</section>${blocks}<div class="small muted">Los saldos de cierre se guardan solos desde que empezaste a usar esta versión.</div>`;
+  const rendT=S.rend?Object.entries(S.rend):[];
+  return `<section class="sect"><h2>Flujo por mes<small>todas tus cuentas</small></h2>${flujoBloque(flujoGlobal(),{la:'Ingresos',lb:'Gastos',neto:'Ahorro',sg:1,acum:'Ahorro acumulado (ingresos menos gastos)',nota:'No cuenta pagos a tarjetas ni movimientos entre tus cuentas, para no repetir lo mismo.'})}</section>${rendT.length?`<section class="sect"><h2>Rendimientos<small>cajitas de Nu</small></h2>${rendT.sort().map(([k,v])=>`<div class="kv"><span>${monthLabel(k)}</span><span class="n">${fmt(v)}</span></div>`).join('')}<div class="kv"><span><b style="color:var(--ink)">Total</b></span><span class="n"><b>${fmt(rendT.reduce((a,[,v])=>a+v,0))}</b></span></div><div class="small muted" style="margin-top:6px">Ya están dentro del saldo de la cuenta; aquí van aparte para no mezclarlos con tus ingresos.</div></section>`:''}${blocks}<div class="small muted">Los saldos de cierre se guardan solos desde que empezaste a usar esta versión.</div>`;
 }
 
 /* ---- ahorro ---- */
@@ -4298,7 +4373,7 @@ function joinForm(pre){
         save:async w=>{try{const g=await joinGrupo(info.gid,w.pick||'');ui.tab='grupos';ui.grupo=g.id;saveUI();closeModal();render();toast('Te uniste al grupo')}catch(e){return 'No se pudo unir. Intenta de nuevo.'}}}),30);
     }});
 }
-function doImport(tx){try{const s=JSON.parse(tx);if(!s||typeof s!=='object'||!Array.isArray(s.cards)||!Array.isArray(s.items))throw 0;S=migrate(s);persist();render();toast('Respaldo restaurado')}catch(e){toast('Ese texto no es un respaldo válido')}}
+function doImport(tx){try{const s=JSON.parse(tx);if(!s||typeof s!=='object'||!Array.isArray(s.cards)||!Array.isArray(s.items))throw 0;if(S&&!S.demo)guardarUndo('Restaurar un respaldo');S=migrate(s);persist();render();toast('Respaldo restaurado')}catch(e){toast('Ese texto no es un respaldo válido')}}
 
 document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el||el.tagName==='LABEL'||el.disabled)return;e.preventDefault();const f=A[el.dataset.a];if(f)f(el)});
 document.addEventListener('input',e=>{
