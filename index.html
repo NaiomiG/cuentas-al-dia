@@ -551,7 +551,7 @@ function cardInst(c,from,to){
     if(rec)amount=rec.monto;
     else{
       const closed=addDays(d,-dp)<=t;
-      if(c.statement===0&&closed&&first){const ci=addDays(d,-dp);const pagado=(c.ultCorte&&c.ultCorte>=ci)||Object.keys(S.paid).some(k=>k.startsWith('k:'+c.id+':')&&!S.paid[k].omit&&S.paid[k].fecha>=ci);if(pagado||d<t){first=false;continue}}
+      if(c.statement===0&&closed&&first){const ci=addDays(d,-dp);const pagado=(c.ultCorte&&c.ultCorte>=ci)||Object.keys(S.paid).some(k=>k.startsWith('k:'+c.id+':')&&!S.paid[k].omit&&S.paid[k].fecha>=ci&&k.slice(-10)>=addDays(d,-10));if(pagado||d<t){first=false;continue}}
       let conocido=false;
       if(first&&(+c.statement>0)&&(!sd||d===sd)){amount=+c.statement;conocido=true}
       else if(first&&c.statement==null&&(+c.balance||0)>0){amount=Math.max(+c.balance,cardEst(c,k));est=true;carryUsed=true}
@@ -754,12 +754,13 @@ function editCard(id){
       {k:'minimo',label:'Pago mínimo',type:'number',hint:'Opcional. Lo menos que puedes pagar sin caer en mora; lo demás genera intereses.'},
       {k:'corte',label:'Día de corte',type:'number',hint:'Del 1 al 31'},
       {k:'diasPago',label:'Días del corte al pago',type:'number',hint:'Casi siempre 20'},
-      {k:'tasa',label:'Tasa anual (CAT %)',type:'number',hint:'Opcional. Sirve para ordenar abonos.'},
+      {k:'tasa',label:'Tasa de interés anual %',type:'number',hint:'La ordinaria que dice tu estado de cuenta. Sirve para ordenar abonos.'},
+      {k:'cat',label:'CAT sin IVA %',type:'number',hint:'Costo Anual Total que viene en tu estado de cuenta. Opcional, solo para consultarlo.'},
       {k:'gastoProm',label:'Gasto nuevo al mes',type:'number',hint:'Opcional. Para estimar pagos futuros.'}]},
     save:v=>{
       if(!String(v.nombre||'').trim())return 'Ponle un nombre a la tarjeta.';
       if(!(num(v.corte)>=1&&num(v.corte)<=31))return 'El día de corte debe estar entre 1 y 31.';
-      const o={nombre:v.nombre.trim(),banco:v.banco||'',color:'navy',c1:hexOk(v.c1)?v.c1:CLASS_HEX.navy,c2:hexOk(v.c2)?v.c2:(hexOk(v.c1)?v.c1:CLASS_HEX.navy),limite:num(v.limite),balance:num(v.balance),statement:(v.statement===''||v.statement==null)?null:num(v.statement),minimo:(v.minimo===''||v.minimo==null)?0:num(v.minimo),corte:num(v.corte),diasPago:num(v.diasPago)||20,tasa:num(v.tasa),gastoProm:num(v.gastoProm)};
+      const o={nombre:v.nombre.trim(),banco:v.banco||'',color:'navy',c1:hexOk(v.c1)?v.c1:CLASS_HEX.navy,c2:hexOk(v.c2)?v.c2:(hexOk(v.c1)?v.c1:CLASS_HEX.navy),limite:num(v.limite),balance:num(v.balance),statement:(v.statement===''||v.statement==null)?null:num(v.statement),minimo:(v.minimo===''||v.minimo==null)?0:num(v.minimo),corte:num(v.corte),diasPago:num(v.diasPago)||20,tasa:num(v.tasa),cat:(v.cat===''||v.cat==null)?null:num(v.cat),gastoProm:num(v.gastoProm)};
       if(c)Object.assign(c,o);else S.cards.push({id:uid(),desde:todayISO(),msi:[],...o});
       commit('Guardado');},
     onDel:()=>{S.cards=S.cards.filter(x=>x.id!==id);Object.keys(S.paid).forEach(k=>{if(k.startsWith('k:'+id+':'))delete S.paid[k]});commit('Tarjeta eliminada')}});
@@ -3033,6 +3034,7 @@ function cardArticle(c,t,all,nav){
       ${venc.map(i=>`<div class="kv"><span>Sin confirmar · ${dshort(i.date)}</span><span>${fmt0(i.amount)} <button class="link" data-a="pay" data-k="${i.key}">Ya lo pagué</button></span></div>`).join('')}
       ${nx&&+c.corte>=1&&c.statement>0?`<div class="kv"><span>Pagar antes del</span><span>${dshort(nx.date)} · ${rel(nx.date)}</span></div><div class="kv"><span>Pago para no generar intereses</span><span>${fmt0(c.statement)}</span></div>`:`<div class="kv"><span>Siguiente pago</span><span>${nx?(+c.corte>=1?`${dshort(nx.date)} · ${nx.unk?'por calcular':fmt0(nx.amount)+(nx.est?' aprox.':'')}`:`Se cuenta tu saldo: ${fmt0(nx.amount)}`):'—'}</span></div>`}
       ${+c.minimo>0?`<div class="kv"><span>Pago mínimo</span><span>${fmt0(c.minimo)}</span></div>`:''}
+      ${+c.tasa>0?`<div class="kv"><span>Tasa de interés anual</span><span>${c.tasa}%</span></div>`:''}${c.cat!=null&&c.cat!==''?`<div class="kv"><span>CAT sin IVA</span><span>${c.cat}%</span></div>`:''}
       ${msiPendTotal(c)>0?`<div class="kv"><span>Compras a meses por pagar</span><span>${fmt0(msiPendTotal(c))}</span></div>`:''}
       <details class="small muted" style="margin:6px 0 2px"><summary style="cursor:pointer">¿Qué significa cada monto?</summary><div style="margin-top:6px"><b style="color:var(--ink)">Para no generar intereses:</b> lo que debes pagar antes de la fecha límite para que no te cobren intereses. Incluye lo del periodo y la mensualidad de tus compras a meses.<br><b style="color:var(--ink)">Pago mínimo:</b> lo menos que puedes pagar sin caer en mora. Si pagas solo eso, el resto genera intereses.<br><b style="color:var(--ink)">Saldo total (lo que debes):</b> todo lo que le debes al banco, incluidas las mensualidades futuras de tus compras a meses. No tienes que pagarlo de una vez.</div></details>
       ${(c.msi||[]).map(q=>{const hechos=q.meses-q.remaining,end=shiftMonth(monthKey(t),Math.max(0,q.remaining-1)).split('-').map(Number);return `<div class="msi"><div><b>${esc(q.concepto)}</b><span class="muted small">${fmt0(msiMensual(q))} al mes · ${q.remaining>0?`faltan ${q.remaining}`:'liquidado'}</span></div><button class="link" data-a="editMsi" data-id="${c.id}" data-p="${q.id}">Editar</button><div class="prog ${q.remaining===0?'good':''}"><i style="width:${(hechos/q.meses*100).toFixed(0)}%"></i></div></div>`}).join('')}
